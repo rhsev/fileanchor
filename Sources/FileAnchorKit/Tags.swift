@@ -46,19 +46,23 @@ public enum Tags {
     /// hand-roll the binary format, and both paths hit the identical key, so the
     /// result is Finder-visible and Spotlight-indexed (verified) either way.
     private static func write(path: String, tags: [String]) throws {
+        // The setter also needs the macOS 26 SDK to *compile* (it is get-only
+        // in older SDKs), so the availability check alone is not enough.
+        #if compiler(>=6.2)
         if #available(macOS 26.0, *) {
             var url = URL(fileURLWithPath: path)
             var values = URLResourceValues()
             values.tagNames = tags
             try url.setResourceValues(values)
+            return
+        }
+        #endif
+        if tags.isEmpty {
+            Xattr.remove(storageKey, path: path)
         } else {
-            if tags.isEmpty {
-                Xattr.remove(storageKey, path: path)
-            } else {
-                let data = try PropertyListSerialization.data(fromPropertyList: tags, format: .binary, options: 0)
-                guard Xattr.setData(storageKey, data: data, path: path) else {
-                    throw EngineError.writeFailed(storageKey)
-                }
+            let data = try PropertyListSerialization.data(fromPropertyList: tags, format: .binary, options: 0)
+            guard Xattr.setData(storageKey, data: data, path: path) else {
+                throw EngineError.writeFailed(storageKey)
             }
         }
     }
