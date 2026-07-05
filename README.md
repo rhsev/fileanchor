@@ -1,15 +1,19 @@
 # fileanchor
 
-fileanchor started as the metadata layer inside fileregister — my
-file-collection tooling kept needing durable references that survive moves, and
-shelling out to `bookmark`/`xattr`/`plutil`/`mdfind` per file was both slow and
-subtly wrong. Once the engine proved useful on its own, it moved into its own
-repo.
+![test](https://github.com/rhsev/fileanchor/actions/workflows/test.yml/badge.svg)
 
-It is a small native macOS metadata engine: files get a durable identity and
-metadata over a batch stdio protocol, served by in-process Foundation /
-CoreServices calls — no fork+exec per file, and Foundation encodes Finder tags
-and metadata correctly.
+fileanchor is a small native macOS metadata engine. It gives files a durable
+identity (bookmarks) and reads and writes Finder tags and Finder comments. The
+metadata travels over a batch protocol: one JSON object per line on stdin, one
+response per line on stdout. Everything runs through in-process Foundation /
+CoreServices calls, no fork+exec per file, so it is fast: 2,000 tag reads take
+about 50 ms. It runs on macOS 13 or later (tested on 15).
+
+fileanchor helps metadata survive renaming and moving files. Using
+`xattr`/`plutil`/`mdfind` per file was both slow and subtly wrong. It started
+as the metadata layer inside a larger file-collection tool of mine,
+fileregister (not yet published); once the engine proved useful on its own, it
+moved into its own repo.
 
 It operates only on `(path, id/blob, tag, key, value)` and knows nothing about
 any consumer's record model, so it is reusable: an `id → bookmark → file`
@@ -22,6 +26,9 @@ not the owner.
 > implementation of the same contract (inode/hash resolution, `user.*` xattrs, a
 > locate index) can live in this repo later. Platform is an implementation
 > detail, not part of the name.
+
+The specification lives in [SPEC.md](SPEC.md), which was written before and
+during the build. It also records the results of the metadata experiments.
 
 ## Protocol
 
@@ -90,7 +97,7 @@ Apple `kMDItem*` namespace does not.
 
 ## Build
 
-SwiftPM, arm64, macOS 13+:
+SwiftPM, arm64, macOS 13 or later (tested on macOS 15):
 
 ```
 swift build -c release        # binary at .build/release/fileanchor
@@ -112,11 +119,6 @@ quarantine flag — clear it with `xattr -d com.apple.quarantine fileanchor`.
 
 ## Design decisions
 
-- **Name.** `fileanchor` — neutral, reusable, not consumer-bound. A *new*
-  consolidated surface, not a drop-in `bookmark` replacement.
-- **Own repo.** It is a reusable tool with potentially several consumers, so it
-  lives independently and is vendored into each, rather than as a subdir of any
-  one consumer.
 - **`query` is OS-neutral and minimal.** It names selectors, not Spotlight keys,
   and uses the synchronous `MDQuery` C API (no `NSMetadataQuery` runloop). It is
   the *recovery* path — a consumer's own index answers most enumeration;
