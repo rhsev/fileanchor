@@ -13,10 +13,10 @@ import Foundation
 /// a per-request `name`. This keeps the engine free of any one consumer's
 /// namespace.
 ///
-/// The comment writes only the xattr — like the rest of the engine, it does not
-/// shell out to Spotlight, so Finder's Get Info reflects a change after the file
-/// is reindexed. Reading goes straight off the xattr, so the engine always sees
-/// its own writes immediately.
+/// Comment writes update the xattr and then tell Finder (see FinderComment):
+/// Finder keeps its own copy and never reads the xattr back, so without the
+/// write-through Get Info would never show the change. Reading goes straight
+/// off the xattr, so the engine always sees its own writes immediately.
 public struct Meta {
     /// Default alias xattr name from the launch flag; nil if unset.
     public let syncName: String?
@@ -91,6 +91,29 @@ public struct Meta {
         return Xattr.setData(xattr, data: data, path: path)
     }
 
+    // Scalar string, binary-plist encoded. Empty value clears it (an empty
+    // Finder comment is no comment).
+    private func setPlistString(_ value: String, mode: String, xattr: String, path: String) throws -> String {
+        let current = readPlistString(xattr, path: path)
+        switch mode {
+        case "add", "set":
+            if value.isEmpty {
+                guard current != nil else { return "noop" }
+                guard Xattr.remove(xattr, path: path) else { throw EngineError.writeFailed(xattr) }
+                return "removed"
+            }
+            guard current != value else { return "noop" }
+            guard writePlistString(value, xattr, path: path) else { throw EngineError.writeFailed(xattr) }
+            return "set"
+        case "remove":
+            guard current != nil else { return "noop" }
+            guard Xattr.remove(xattr, path: path) else { throw EngineError.writeFailed(xattr) }
+            return "removed"
+        default:
+            throw EngineError.invalidMode(mode)
+        }
+    }
+
     /// Read a meta value. Multi-valued keys return `values: [...]`; the
     /// single-valued alias returns `value: "..."` (or null when absent).
     public func get(path: String, key: String, requestName: String?) throws -> Response {
@@ -118,26 +141,12 @@ public struct Meta {
         let mode = mode ?? "add"
 
         if r.plist {
-            // Scalar string, binary-plist encoded. Empty value clears it (an
-            // empty Finder comment is no comment).
-            let current = readPlistString(r.xattr, path: path)
-            switch mode {
-            case "add", "set":
-                if value.isEmpty {
-                    guard current != nil else { return "noop" }
-                    guard Xattr.remove(r.xattr, path: path) else { throw EngineError.writeFailed(r.xattr) }
-                    return "removed"
-                }
-                guard current != value else { return "noop" }
-                guard writePlistString(value, r.xattr, path: path) else { throw EngineError.writeFailed(r.xattr) }
-                return "set"
-            case "remove":
-                guard current != nil else { return "noop" }
-                guard Xattr.remove(r.xattr, path: path) else { throw EngineError.writeFailed(r.xattr) }
-                return "removed"
-            default:
-                throw EngineError.invalidMode(mode)
-            }
+            let action = try setPlistString(value, mode: mode, xattr: r.xattr, path: path)
+            // Write through to Finder's own store — also on noop: the xattr
+            // may already be current while Finder's copy is not (e.g. a
+            // restore over an intact xattr).
+            FinderComment.sync(path: path, comment: mode == "remove" ? "" : value)
+            return action
         } else if r.array {
             var current = arrayItems(r.xattr, path: path)
             switch mode {

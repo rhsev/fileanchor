@@ -15,6 +15,9 @@ final class EngineTests: XCTestCase {
     let syncName = "com.fileregister.id#S"
 
     override func setUpWithError() throws {
+        // Comment writes would otherwise send Apple Events to Finder — slow,
+        // and a TCC automation prompt on a fresh test runner.
+        FinderComment.isEnabled = false
         dir = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("fileanchor-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

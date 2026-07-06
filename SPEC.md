@@ -33,7 +33,9 @@ rather than wrapping a wrapper.
 
 - **In scope:** bookmark save/resolve (batched), Finder tags, the
   `kMDItemProjects` and `kMDItemInformation` xattrs, the Finder comment
-  (`kMDItemFinderComment`, a binary-plist string), the cross-device `#S` id
+  (`kMDItemFinderComment`, a binary-plist string — written through to Finder
+  itself via Apple Event, best effort, because Finder never reads that xattr
+  back and Get Info would otherwise stay blank), the cross-device `#S` id
   (its name is a parameter — see below), the ★ marker, a Spotlight query.
 - **OS-neutral protocol.** Linux is a *future second implementation of the same
   contract* (inode/hash resolution instead of bookmarks, `user.*` xattrs,
