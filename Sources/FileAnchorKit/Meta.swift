@@ -77,11 +77,15 @@ public struct Meta {
     // The Finder comment is a single string wrapped in a binary plist — not a
     // raw-UTF-8 xattr (sync) and not a CFArray (groups). Read/written here so it
     // round-trips with Finder and with Markdown backups that use the same shape.
+    // Reads are NFC-normalized: Finder re-exports the xattr in decomposed form
+    // (NFD) whenever it takes a comment — both via the write-through and when a
+    // comment is typed in Get Info — so without normalization the same text
+    // would read back byte-different and never compare equal.
     private func readPlistString(_ xattr: String, path: String) -> String? {
         guard let data = Xattr.getData(xattr, path: path), !data.isEmpty,
               let obj = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil),
               let string = obj as? String else { return nil }
-        return string
+        return string.precomposedStringWithCanonicalMapping
     }
 
     @discardableResult

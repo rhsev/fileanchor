@@ -143,6 +143,17 @@ raw = bytes.fromhex(hexed.replace(" ", "").replace("\n", ""))
 decoded = subprocess.run(["plutil", "-convert", "raw", "-o", "-", "--", "-"],
                          input=raw, capture_output=True).stdout.decode("utf-8").rstrip("\n")
 check(decoded == "Beleg 2026", "comment is a binary-plist string (plutil round-trips it)")
+# Umlauts must round-trip precomposed (NFC). Finder re-exports the xattr in NFD
+# whenever it takes a comment; the engine normalizes reads. ß alone won't catch
+# this (it has no decomposition), so test real umlauts.
+resp = run_batch([
+    {"op": "set_meta", "path": f, "key": "comment", "value": "Geschäftsbeleg äöü", "mode": "set"},
+    {"op": "get_meta", "path": f, "key": "comment"},
+])
+import unicodedata
+value = resp[1].get("value") or ""
+check(value == "Geschäftsbeleg äöü" and unicodedata.is_normalized("NFC", value),
+      "umlaut comment reads back NFC-precomposed")
 
 print("\n# soft errors never halt the batch")
 resp = run_batch([
