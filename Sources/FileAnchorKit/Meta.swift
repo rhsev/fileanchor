@@ -18,7 +18,7 @@ import Foundation
 /// write-through Get Info would never show the change. Reading goes straight
 /// off the xattr, so the engine always sees its own writes immediately.
 public struct Meta {
-    /// Default alias xattr name from the launch flag; nil if unset.
+    /// Default sync xattr name from the launch flag; nil if unset.
     public let syncName: String?
 
     public init(syncName: String?) {
@@ -119,7 +119,7 @@ public struct Meta {
     }
 
     /// Read a meta value. Multi-valued keys return `values: [...]`; the
-    /// single-valued alias returns `value: "..."` (or null when absent).
+    /// single-valued `sync`/`comment` return `value: "..."` (or null when absent).
     public func get(path: String, key: String, requestName: String?) throws -> Response {
         let r = try resolve(key: key, requestName: requestName)
         var resp = Response(ok: true)
@@ -137,7 +137,7 @@ public struct Meta {
 
     /// Write a meta value. For multi-valued keys: `add` appends a token
     /// idempotently, `remove` drops it (clearing the xattr when it empties),
-    /// `set` replaces the whole value. For the single-valued alias: `add`/`set`
+    /// `set` replaces the whole value. For single-valued keys: `add`/`set`
     /// write the value idempotently, `remove` deletes the xattr.
     /// Returns "added" | "removed" | "noop" | "set".
     public func set(path: String, key: String, value: String, mode: String?, requestName: String?) throws -> String {

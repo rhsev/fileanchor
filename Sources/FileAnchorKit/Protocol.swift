@@ -16,8 +16,8 @@ public struct Request: Decodable {
     public let value: String?
     public let key: String?     // set_meta/get_meta: groups | id | sync | comment
     public let mode: String?    // set_meta: add | remove | set
-    public let by: String?      // query: tag | subject | id | filename
-    public let name: String?    // optional per-request override of the alias xattr name
+    public let by: String?      // query: tag | groups | id | filename
+    public let name: String?    // optional per-request override of the sync xattr name
 }
 
 /// A single response line. Only the fields relevant to the op are populated;
@@ -29,8 +29,8 @@ public struct Response: Encodable {
     public var path: String?
     public var action: String?      // added | removed | noop | set
     public var tags: [String]?
-    public var value: String?       // get_meta single-valued (alias)
-    public var values: [String]?    // get_meta multi-valued (subject/description)
+    public var value: String?       // get_meta single-valued (sync/comment)
+    public var values: [String]?    // get_meta multi-valued (groups/id)
     public var paths: [String]?     // query results
     public var stale: Bool?         // resolve: blob is stale, caller should re-save
 

@@ -5,7 +5,7 @@ import CoreServices
 /// runloop to spin. The op is the *recovery* path (a consumer's own index
 /// answers most enumeration); it mirrors the four lookups fileregister's repair
 /// flow needs, but stays OS-neutral on the wire by naming the *selector*
-/// (`tag`/`subject`/`id`/`filename`), not the Spotlight key. The macOS mapping
+/// (`tag`/`groups`/`id`/`filename`), not the Spotlight key. The macOS mapping
 /// from selector to `kMDItem*` key lives here; a Linux backend would map the
 /// same selectors to its own index.
 ///

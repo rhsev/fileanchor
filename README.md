@@ -125,3 +125,7 @@ quarantine flag — clear it with `xattr -d com.apple.quarantine fileanchor`.
   Spotlight results are subject to indexing latency.
 - **Stateless about the id↔blob map.** The engine does `save`/`resolve` only; the
   consumer owns the id→blob store.
+
+---
+
+*Used by [fileregister](https://github.com/rhsev/fileregister) and [tagback](https://github.com/rhsev/tagback). Part of a family of plain-text tools — the [profile page](https://github.com/rhsev) has the map.*
