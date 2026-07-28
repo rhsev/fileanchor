@@ -101,9 +101,14 @@ SwiftPM, arm64, macOS 13 or later (tested on macOS 15):
 
 ```
 swift build -c release        # binary at .build/release/fileanchor
-swift test                    # XCTest suite (needs Xcode; passes empty on CLT-only)
+swift run fileanchor-selftest # the checks: engine round-trips against a temp dir
 python3 scripts/smoke.py      # live wire-protocol smoke against the built binary
 ```
+
+The checks are a plain executable, not a `.testTarget`: the Command Line Tools
+ship neither XCTest nor swift-testing, so a test target builds and reports
+success without running a single check. `fileanchor-selftest` needs no
+framework, prints how many checks ran, and exits non-zero if any failed.
 
 On macOS < 26 the `URLResourceValues.tagNames` setter is unavailable, so tag
 writes go through `PropertyListSerialization` to the same canonical

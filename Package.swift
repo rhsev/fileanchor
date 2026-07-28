@@ -1,6 +1,12 @@
 // swift-tools-version: 5.9
 import PackageDescription
 
+// No test target on purpose: a machine with only the Command Line Tools ships
+// neither XCTest nor swift-testing, so a `.testTarget` reports success without
+// running anything — `swift test` printed "Build complete!" and ran zero checks.
+// The checks live in a plain executable instead — `swift run fileanchor-selftest`
+// — which needs no framework at all. If Xcode ever gets installed, converting it
+// back is mechanical.
 let package = Package(
     name: "fileanchor",
     platforms: [.macOS(.v13)],
@@ -11,10 +17,10 @@ let package = Package(
         .library(name: "FileAnchorKit", targets: ["FileAnchorKit"]),
     ],
     targets: [
-        // All engine logic lives in the library so it is unit-testable without
-        // the stdio shell. The executable is a thin stdin→engine→stdout loop.
+        // All engine logic lives in the library so it is checkable without the
+        // stdio shell. The executable is a thin stdin→engine→stdout loop.
         .target(name: "FileAnchorKit"),
         .executableTarget(name: "fileanchor", dependencies: ["FileAnchorKit"]),
-        .testTarget(name: "FileAnchorKitTests", dependencies: ["FileAnchorKit"]),
+        .executableTarget(name: "fileanchor-selftest", dependencies: ["FileAnchorKit"]),
     ]
 )
