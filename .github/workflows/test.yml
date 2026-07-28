@@ -10,5 +10,8 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      # smoke.py drives the real binary, which `swift run <one product>` does
+      # not build on its own — `swift test` used to do it as a side effect.
+      - run: swift build
       - run: swift run fileanchor-selftest
       - run: python3 scripts/smoke.py
