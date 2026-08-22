@@ -12,7 +12,7 @@ about 50 ms. It runs on macOS 13 or later (tested on 15).
 fileanchor helps metadata survive renaming and moving files. Using
 `xattr`/`plutil`/`mdfind` per file was both slow and subtly wrong. It started
 as the metadata layer inside a larger file-collection tool of mine,
-fileregister (not yet published); once the engine proved useful on its own, it
+fileregister; once the engine proved useful on its own, it
 moved into its own repo.
 
 It operates only on `(path, id/blob, tag, key, value)` and knows nothing about
