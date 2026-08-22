@@ -133,4 +133,4 @@ quarantine flag — clear it with `xattr -d com.apple.quarantine fileanchor`.
 
 ---
 
-*Used by [fileregister](https://github.com/rhsev/fileregister) and [tagback](https://github.com/rhsev/tagback). Part of a family of plain-text tools — the [profile page](https://github.com/rhsev) has the map.*
+*Used by [fileregister](https://github.com/rhsev/fileregister). Part of a family of plain-text tools — the [profile page](https://github.com/rhsev) has the map.*
