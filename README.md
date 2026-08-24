@@ -131,6 +131,10 @@ quarantine flag — clear it with `xattr -d com.apple.quarantine fileanchor`.
 - **Stateless about the id↔blob map.** The engine does `save`/`resolve` only; the
   consumer owns the id→blob store.
 
+## License
+
+[PolyForm Noncommercial 1.0.0](LICENSE) — source-available, not OSI open source.
+
 ---
 
 *Used by [fileregister](https://github.com/rhsev/fileregister). Part of a family of plain-text tools — the [profile page](https://github.com/rhsev) has the map.*
