@@ -89,10 +89,16 @@ check("★ is removed", try Tags.remove(path: tagFile, value: "★") == "removed
 check("removing ★ again is a noop", try Tags.remove(path: tagFile, value: "★") == "noop")
 check("★ is gone afterwards", try !Tags.get(path: tagFile).contains("★"))
 
-// A tag stored decomposed (NFD) reads back precomposed, byte for byte.
+// A tag stored decomposed (NFD) — by another tool; the engine itself writes
+// NFC — reads back precomposed, byte for byte.
+let tagsKey = "com.apple.metadata:_kMDItemUserTags"
+func writeRawPlist(_ items: [String], _ key: String, _ path: String) {
+    if let data = try? PropertyListSerialization.data(fromPropertyList: items, format: .binary, options: 0) {
+        Xattr.setData(key, data: data, path: path)
+    }
+}
 let nfdTagFile = freshFile()
-let nfd = "Geschäft".decomposedStringWithCanonicalMapping
-_ = try? Tags.add(path: nfdTagFile, value: nfd)
+writeRawPlist(["Geschäft".decomposedStringWithCanonicalMapping], tagsKey, nfdTagFile)
 check("an NFD tag reads back as NFC bytes",
       (try? Tags.get(path: nfdTagFile))?.map { Array($0.utf8) } == [Array("Geschäft".precomposedStringWithCanonicalMapping.utf8)])
 check("and removing it by its NFC form works",
@@ -236,6 +242,52 @@ check("which reads back as its tokens",
       try tokenMeta.get(path: tokenFile, key: "id", requestName: nil).values == ["a", "b"])
 check("setting the same list again is a noop",
       try tokenMeta.set(path: tokenFile, key: "id", value: "a b", mode: "set", requestName: nil) == "noop")
+
+// MARK: - Values: strict on write, tolerant on removal
+
+section("Values")
+
+let valueFile = freshFile()
+let valueMeta = Meta(syncName: syncName)
+func refused(_ body: @escaping () throws -> Void) -> Bool { didThrow(body) }
+
+check("a tag with a comma is refused", refused { _ = try Tags.add(path: valueFile, value: "Müller, Hans") })
+check("a tag with trailing whitespace is refused", refused { _ = try Tags.add(path: valueFile, value: "work ") })
+check("a tag with a newline is refused", refused { _ = try Tags.add(path: valueFile, value: "a\nb") })
+check("an empty tag is refused", refused { _ = try Tags.add(path: valueFile, value: "") })
+check("a 255-byte tag is fine", try Tags.add(path: valueFile, value: String(repeating: "t", count: 255)) == "added")
+check("a 256-byte tag is refused", refused { _ = try Tags.add(path: valueFile, value: String(repeating: "t", count: 256)) })
+check("inner spaces and colons are fine in a tag", try Tags.add(path: valueFile, value: "rules:Mail Mate") == "added")
+check("an NFD tag is stored NFC", {
+    _ = try? Tags.add(path: valueFile, value: "Übersicht".decomposedStringWithCanonicalMapping)
+    guard let data = Xattr.getData(tagsKey, path: valueFile),
+          let list = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String]
+    else { return false }
+    return list.contains { Array($0.utf8) == Array("Übersicht".precomposedStringWithCanonicalMapping.utf8) }
+}())
+
+check("a group with a comma is refused",
+      refused { _ = try valueMeta.set(path: valueFile, key: "groups", value: "a,b", mode: "add", requestName: nil) })
+check("a sync id with a space is refused",
+      refused { _ = try valueMeta.set(path: valueFile, key: "sync", value: "1 2", mode: "set", requestName: nil) })
+check("a sync id of 129 bytes is refused",
+      refused { _ = try valueMeta.set(path: valueFile, key: "sync", value: String(repeating: "9", count: 129), mode: "set", requestName: nil) })
+check("an id list with a comma token is refused",
+      refused { _ = try valueMeta.set(path: valueFile, key: "id", value: "1 2,3", mode: "set", requestName: nil) })
+check("a comment may hold a newline",
+      try valueMeta.set(path: valueFile, key: "comment", value: "Rechnung\n", mode: "set", requestName: nil) == "set")
+check("but not a bell",
+      refused { _ = try valueMeta.set(path: valueFile, key: "comment", value: "a\u{07}b", mode: "set", requestName: nil) })
+check("a comment over 1 KiB is refused",
+      refused { _ = try valueMeta.set(path: valueFile, key: "comment", value: String(repeating: "c", count: 1025), mode: "set", requestName: nil) })
+
+// Values written by other tools stay removable.
+let legacyFile = freshFile()
+writeRawPlist(["a,b"], tagsKey, legacyFile)
+writeRawPlist(["x, y"], "com.apple.metadata:kMDItemProjects", legacyFile)
+check("a legacy comma tag can be removed", try Tags.remove(path: legacyFile, value: "a,b") == "removed")
+check("a legacy comma group can be removed",
+      try valueMeta.set(path: legacyFile, key: "groups", value: "x, y", mode: "remove", requestName: nil) == "removed")
 
 // MARK: - Query: an id matches whole tokens only
 

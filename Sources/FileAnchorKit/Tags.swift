@@ -19,8 +19,10 @@ public enum Tags {
         return values.tagNames?.map(\.precomposedStringWithCanonicalMapping) ?? []
     }
 
-    /// Add a tag if absent. Returns "added" or "noop". Idempotent.
+    /// Add a tag if absent. Returns "added" or "noop". Idempotent. The tag
+    /// must pass the label rule (Values); removal takes any tag.
     public static func add(path: String, value: String) throws -> String {
+        let value = try Values.validate(value, as: .label, key: "tag")
         var tags = try get(path: path)
         guard !tags.contains(value) else { return "noop" }
         tags.append(value)

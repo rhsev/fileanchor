@@ -39,6 +39,8 @@ public struct Meta {
         var multi: Bool = false
         var array: Bool = false
         var plist: Bool = false   // scalar string stored as a binary plist
+
+        var kind: Values.Kind { plist ? .text : array ? .label : .token }
     }
 
     private func resolve(key: String, requestName: String?) throws -> Resolved {
@@ -153,6 +155,19 @@ public struct Meta {
         let r = try resolve(key: key, requestName: requestName)
         let mode = mode ?? "add"
 
+        // Only what gets written is validated (PLATFORMS.md): an empty set is
+        // a delete, and removal takes any value that is there.
+        var value = value
+        if mode == "add" || mode == "set", !value.isEmpty {
+            if r.kind == .token && r.multi && mode == "set" {
+                value = try Self.tokenize(value)
+                    .map { try Values.validate($0, as: .token, key: key) }
+                    .joined(separator: " ")
+            } else {
+                value = try Values.validate(value, as: r.kind, key: key)
+            }
+        }
+
         if r.plist {
             let action = try setPlistString(value, mode: mode, xattr: r.xattr, path: path)
             // Write through to Finder's own store — also on noop: the xattr
@@ -187,9 +202,9 @@ public struct Meta {
             }
         } else if r.multi {
             var current = tokens(r.xattr, path: path)
-            // A single token with whitespace in it would be stored as several
-            // and never match again: re-adding appends duplicates, remove noops.
-            if mode == "add" || mode == "remove", value.contains(where: \.isWhitespace) {
+            // No stored token holds whitespace, so removing one that does is a
+            // caller error, not a noop.
+            if mode == "remove", value.contains(where: \.isWhitespace) {
                 throw EngineError.invalidValue("\(key) token contains whitespace")
             }
             switch mode {
