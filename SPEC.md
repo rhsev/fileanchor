@@ -84,8 +84,9 @@ failure.
 | `set_meta` / `get_meta` | `path`, `key` (`groups`\|`id`\|`sync`\|`comment`), `value` | `{ok, action}` / `{ok, value}` |
 | `query` | `by` (`id`\|`filename`\|`groups`\|`tag`), `value` | `{ok, paths: [...]}` |
 
-A path that does not exist is a per-op error (`no such file`), never empty
-metadata. An empty `set_meta … mode:set` deletes on every key. `query by:id`
+Written values must pass the value rules in [PLATFORMS.md](PLATFORMS.md)
+(strict on write, tolerant on read and removal, stored NFC). A path that does
+not exist is a per-op error (`no such file`), never empty metadata. An empty `set_meta … mode:set` deletes on every key. `query by:id`
 returns only files carrying the value as a whole token.
 
 `query` takes `{by, value}` (not a bare tag) so it covers all of a consumer's

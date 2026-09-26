@@ -29,6 +29,8 @@ not the owner.
 
 The specification lives in [SPEC.md](SPEC.md), which was written before and
 during the build. It also records the results of the metadata experiments.
+[PLATFORMS.md](PLATFORMS.md) records what an engine for another OS must share
+with this one.
 
 ## Protocol
 
@@ -74,6 +76,11 @@ smooth, not batching the wire.
   queried under `kMDItemUserTags`). `by: id` matches whole tokens only:
   Spotlight can only match it as a substring, so the engine drops hits whose
   id merely contains the value (`rechnung-1` vs `rechnung-10`).
+- **Values** are checked on write. Tags and groups may hold no comma and no
+  leading or trailing whitespace. `id`/`sync` are single tokens without
+  whitespace. A comment is free text up to 1 KiB. Everything is stored NFC.
+  Removal takes any value, so existing ones can be cleaned up. The rules hold
+  for every platform's engine; [PLATFORMS.md](PLATFORMS.md) has the reasons.
 - **`stale`** on `resolve` means the bookmark resolved but should be regenerated
   with a fresh `save`.
 
