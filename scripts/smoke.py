@@ -92,6 +92,18 @@ check(set(resp[3].get("tags", [])) == {"★", "Geschäft"}, "tags lists ★ and 
 if MACOS:
     check("com.apple.metadata:_kMDItemUserTags" in xattr_names(f),
           "macOS: stored under the canonical _kMDItemUserTags key (with underscore)")
+if MACOS:
+    # A tag's color is stored with it ("name\n<index>"); adding or removing
+    # another tag must not touch it.
+    import plistlib
+    c = os.path.join(tmp, "color.txt")
+    open(c, "w").close()
+    key = "com.apple.metadata:_kMDItemUserTags"
+    subprocess.run(["xattr", "-wx", key, plistlib.dumps(["Rot\n6"], fmt=plistlib.FMT_BINARY).hex(), c], check=True)
+    run_batch([{"op": "tag", "path": c, "value": "Neu"}, {"op": "untag", "path": c, "value": "Neu"}])
+    h = subprocess.run(["xattr", "-px", key, c], capture_output=True, text=True).stdout
+    check(plistlib.loads(bytes.fromhex(h.replace(" ", "").replace("\n", ""))) == ["Rot\n6"],
+          "macOS: tag/untag keeps another tag's color")
 resp = run_batch([{"op": "untag", "path": f, "value": "★"}, {"op": "tags", "path": f}])
 check(resp[0].get("action") == "removed", "★ removed")
 check(resp[1].get("tags") == ["Geschäft"], "only umlaut tag remains")

@@ -7,8 +7,8 @@ on:
 
 jobs:
   test:
-    # Both sides of the tagNames setter gate: macos-15 writes tags through the
-    # plist fallback, macos-26 (SDK and OS 26) through the native setter.
+    # The oldest and newest macOS images: Finder metadata behavior has changed
+    # between releases before (the tagNames setter arrived in 26).
     strategy:
       matrix:
         os: [macos-15, macos-26]

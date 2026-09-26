@@ -1,10 +1,9 @@
 import Foundation
 
-/// Finder tags via `URLResourceValues.tagNames` — Foundation reads and writes
-/// the canonical `com.apple.metadata:_kMDItemUserTags` key (with the leading
-/// underscore) and handles the binary-plist array encoding for us. No
-/// hand-rolled plist, no manual color-suffix stripping: `tagNames` already
-/// returns clean names.
+/// Finder tags under the canonical `com.apple.metadata:_kMDItemUserTags` key
+/// (with the leading underscore). Reads go through `URLResourceValues.tagNames`,
+/// which returns clean names; writes edit the stored entries directly so that
+/// tag colors survive (see `storedEntries`).
 ///
 /// This is also where the ★ managed marker (U+2605) and any opt-in binder tags
 /// live — they are all just Finder tag strings to this layer.
@@ -23,52 +22,50 @@ public enum Tags {
     /// must pass the label rule (Values); removal takes any tag.
     public static func add(path: String, value: String) throws -> String {
         let value = try Values.validate(value, as: .label, key: "tag")
-        var tags = try get(path: path)
-        guard !tags.contains(value) else { return "noop" }
-        tags.append(value)
-        try write(path: path, tags: tags)
+        let entries = storedEntries(path: path)
+        guard !entries.contains(where: { name(of: $0) == value }) else { return "noop" }
+        try write(path: path, entries: entries + [value])
         return "added"
     }
 
     /// Remove a tag if present. Returns "removed" or "noop". Idempotent.
     public static func remove(path: String, value: String) throws -> String {
-        var tags = try get(path: path)
-        guard tags.contains(value) else { return "noop" }
-        tags.removeAll { $0 == value }
-        try write(path: path, tags: tags)
+        let entries = storedEntries(path: path)
+        guard entries.contains(where: { name(of: $0) == value }) else { return "noop" }
+        try write(path: path, entries: entries.filter { name(of: $0) != value })
         return "removed"
     }
 
-    /// Canonical storage key — with the leading underscore (verified). Used by
-    /// the pre-macOS-26 write path; the native setter targets the same key.
+    /// Canonical storage key — with the leading underscore (verified).
     static let storageKey = "com.apple.metadata:_kMDItemUserTags"
 
-    /// Replace the full tag set. An empty array clears the tag xattr.
-    ///
-    /// The `tagNames` *setter* is annotated macOS 26.0+, so below that we write
-    /// the canonical `_kMDItemUserTags` key ourselves — but let Foundation
-    /// (`PropertyListSerialization`) produce the binary-plist array. We never
-    /// hand-roll the binary format, and both paths hit the identical key, so the
-    /// result is Finder-visible and Spotlight-indexed (verified) either way.
-    private static func write(path: String, tags: [String]) throws {
-        // The setter also needs the macOS 26 SDK to *compile* (it is get-only
-        // in older SDKs), so the availability check alone is not enough.
-        #if compiler(>=6.2)
-        if #available(macOS 26.0, *) {
-            var url = URL(fileURLWithPath: path)
-            var values = URLResourceValues()
-            values.tagNames = tags
-            try url.setResourceValues(values)
+    // Writes go to the stored entries, not through `tagNames`. An entry is
+    // "name" or "name\n<color index>", and `tagNames` knows only names: a
+    // read-modify-write through it drops every other tag's color (the native
+    // macOS 26 setter resets them all to 0, verified on macOS 27). Existing
+    // entries are kept byte for byte; a new tag goes in as a bare name, which
+    // Finder shows and Spotlight indexes (verified since 1.0.0).
+    private static func storedEntries(path: String) -> [String] {
+        guard let data = Xattr.getData(storageKey, path: path), !data.isEmpty,
+              let list = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String]
+        else { return [] }
+        return list
+    }
+
+    private static func name(of entry: String) -> String {
+        entry.firstIndex(of: "\n").map { String(entry[..<$0]) } ?? entry
+    }
+
+    /// Replace the stored entries. An empty list clears the tag xattr.
+    /// Foundation produces the binary-plist array — never hand-rolled.
+    private static func write(path: String, entries: [String]) throws {
+        if entries.isEmpty {
+            guard Xattr.remove(storageKey, path: path) else { throw EngineError.writeFailed(storageKey) }
             return
         }
-        #endif
-        if tags.isEmpty {
-            Xattr.remove(storageKey, path: path)
-        } else {
-            let data = try PropertyListSerialization.data(fromPropertyList: tags, format: .binary, options: 0)
-            guard Xattr.setData(storageKey, data: data, path: path) else {
-                throw EngineError.writeFailed(storageKey)
-            }
+        let data = try PropertyListSerialization.data(fromPropertyList: entries, format: .binary, options: 0)
+        guard Xattr.setData(storageKey, data: data, path: path) else {
+            throw EngineError.writeFailed(storageKey)
         }
     }
 }

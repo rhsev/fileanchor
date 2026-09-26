@@ -130,10 +130,11 @@ ship neither XCTest nor swift-testing, so a test target builds and reports
 success without running a single check. `fileanchor-selftest` needs no
 framework, prints how many checks ran, and exits non-zero if any failed.
 
-On macOS < 26 the `URLResourceValues.tagNames` setter is unavailable, so tag
-writes go through `PropertyListSerialization` to the same canonical
-`_kMDItemUserTags` key; on macOS 26+ the native setter is used. Reads always use
-the `tagNames` getter.
+Tags are read through the `URLResourceValues.tagNames` getter. Writes edit the
+stored `_kMDItemUserTags` entries directly (via `PropertyListSerialization`),
+because an entry carries the tag's color (`name\n<index>`) and `tagNames` knows
+only names: writing through it would reset the color of every other tag on the
+file. Up to 1.0.2 that happened on every `tag`/`untag`.
 
 ### Vendoring
 

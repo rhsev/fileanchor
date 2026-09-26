@@ -263,7 +263,11 @@ check("an NFD tag is stored NFC", {
     guard let data = Xattr.getData(tagsKey, path: valueFile),
           let list = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String]
     else { return false }
-    return list.contains { Array($0.utf8) == Array("Übersicht".precomposedStringWithCanonicalMapping.utf8) }
+    // An entry is "name" or "name\n<color>"; compare the name part.
+    return list.contains {
+        Array($0.split(separator: "\n", omittingEmptySubsequences: false)[0].utf8)
+            == Array("Übersicht".precomposedStringWithCanonicalMapping.utf8)
+    }
 }())
 
 check("a group with a comma is refused",
@@ -280,6 +284,26 @@ check("but not a bell",
       refused { _ = try valueMeta.set(path: valueFile, key: "comment", value: "a\u{07}b", mode: "set", requestName: nil) })
 check("a comment over 1 KiB is refused",
       refused { _ = try valueMeta.set(path: valueFile, key: "comment", value: String(repeating: "c", count: 1025), mode: "set", requestName: nil) })
+
+// Tag colors survive: an entry is "name\n<color index>", and adding or
+// removing another tag must leave it byte for byte.
+let colorFile = freshFile()
+writeRawPlist(["Rot\n6", "Eigen\n3"], tagsKey, colorFile)
+func storedTags(_ path: String) -> [String] {
+    guard let data = Xattr.getData(tagsKey, path: path) else { return [] }
+    return (try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String]) ?? []
+}
+check("adding a tag keeps the others' colors",
+      (try? Tags.add(path: colorFile, value: "Neu")) == "added"
+          && storedTags(colorFile) == ["Rot\n6", "Eigen\n3", "Neu"])
+check("removing a tag keeps the others' colors",
+      (try? Tags.remove(path: colorFile, value: "Neu")) == "removed"
+          && storedTags(colorFile) == ["Rot\n6", "Eigen\n3"])
+check("a colored tag is found by its name",
+      (try? Tags.add(path: colorFile, value: "Rot")) == "noop")
+check("and removed by it",
+      (try? Tags.remove(path: colorFile, value: "Rot")) == "removed" && storedTags(colorFile) == ["Eigen\n3"])
+check("tags reads the names without colors", (try? Tags.get(path: colorFile)) == ["Eigen"])
 
 // Values written by other tools stay removable.
 let legacyFile = freshFile()

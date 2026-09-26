@@ -62,7 +62,7 @@ table records the macOS engine as built and a proposal for Linux.
 
 | logical | macOS (built) | Linux (proposal) |
 |---|---|---|
-| `tag` | `com.apple.metadata:_kMDItemUserTags`, binary-plist array | `user.xdg.tags`, comma-separated (the freedesktop convention Dolphin reads) |
+| `tag` | `com.apple.metadata:_kMDItemUserTags`, binary-plist array. Entries carry the Finder color (`name\n<index>`), which a write keeps | `user.xdg.tags`, comma-separated (the freedesktop convention Dolphin reads) |
 | `comment` | `com.apple.metadata:kMDItemFinderComment`, binary-plist string, plus a write-through to Finder | `user.xdg.comment`, plain UTF-8 |
 | `groups` | `com.apple.metadata:kMDItemProjects`, binary-plist array | `user.fileanchor.groups`, comma-separated |
 | `id` | `com.apple.metadata:kMDItemInformation`, space-separated | `user.fileanchor.id`, space-separated |

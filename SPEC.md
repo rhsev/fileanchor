@@ -50,9 +50,11 @@ Established empirically (macOS 26.4) — full reference in fileregister's
 `FINDINGS-attributes.md`.
 
 1. **Finder tags** are stored under `com.apple.metadata:_kMDItemUserTags` (**with**
-   leading underscore). The engine uses `URLResourceValues.tagNames`, which
-   reads/writes the correct key and handles the binary-plist array — never the
-   no-underscore `kMDItemUserTags` (a write-only dead end).
+   leading underscore), as a binary-plist array of `name` or `name\n<color
+   index>` entries — never the no-underscore `kMDItemUserTags` (a write-only
+   dead end). The engine reads through `URLResourceValues.tagNames` (clean
+   names) but writes the entries itself, keeping every other entry byte for
+   byte: `tagNames` has no colors, so writing through it resets them.
 2. **Spotlight queries** use the key `kMDItemUserTags` (**no** underscore). Write
    `_kMDItemUserTags`, query `kMDItemUserTags`.
 3. **Bookmark id** is also cached in `com.apple.metadata:kMDItemInformation`,
@@ -147,7 +149,8 @@ modules and `LocatorBackend` are thin clients with unchanged signatures, and a
 
 1. One binary performs all ops over the batch stdio protocol, order-preserving;
    per-op failures never halt the stream.
-2. Finder tags via `tagNames` (no hand-rolled plist); the `#S` sync xattr written/read
+2. Finder tags read via `tagNames`, written without losing colors (no hand-rolled
+   plist); the `#S` sync xattr written/read
    under its flagged name; `kMDItemInformation` multi-value preserved.
 3. Batch resolve in a single process.
 4. Protocol is OS-neutral (no macOS query syntax on the wire).
