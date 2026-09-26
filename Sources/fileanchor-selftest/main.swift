@@ -184,6 +184,66 @@ check("an empty value clears it",
 check("a cleared comment reads back as nothing",
       try commentMeta.get(path: commentFile, key: "comment", requestName: nil).value == nil)
 
+// MARK: - Meta: an empty set deletes, on every key
+
+section("Meta · empty set")
+
+let clearFile = freshFile()
+let clearMeta = Meta(syncName: syncName)
+
+for key in ["groups", "id", "sync"] {
+    _ = try? clearMeta.set(path: clearFile, key: key, value: "x", mode: "set", requestName: nil)
+    check("\(key): an empty set removes it",
+          try clearMeta.set(path: clearFile, key: key, value: "", mode: "set", requestName: nil) == "removed")
+    check("\(key): and again is a noop",
+          try clearMeta.set(path: clearFile, key: key, value: "", mode: "set", requestName: nil) == "noop")
+}
+check("no empty #S attribute is left behind", Xattr.get(syncName, path: clearFile) == nil)
+
+// An empty attribute written by an earlier version still counts as present.
+Xattr.set(syncName, value: "", path: clearFile)
+check("a leftover empty sync attribute is cleaned up",
+      try clearMeta.set(path: clearFile, key: "sync", value: "", mode: "set", requestName: nil) == "removed")
+
+check("groups: setting the current value is a noop", try {
+    _ = try clearMeta.set(path: clearFile, key: "groups", value: "alpha", mode: "set", requestName: nil)
+    return try clearMeta.set(path: clearFile, key: "groups", value: "alpha", mode: "set", requestName: nil) == "noop"
+}())
+
+// MARK: - Meta: an id token holds no whitespace
+
+section("Meta · id tokens")
+
+let tokenFile = freshFile()
+let tokenMeta = Meta(syncName: syncName)
+
+check("adding a token with a space is refused",
+      didThrow { _ = try tokenMeta.set(path: tokenFile, key: "id", value: "a b", mode: "add", requestName: nil) })
+check("removing one is refused too",
+      didThrow { _ = try tokenMeta.set(path: tokenFile, key: "id", value: "a b", mode: "remove", requestName: nil) })
+check("set takes a space-separated list",
+      try tokenMeta.set(path: tokenFile, key: "id", value: "a  b", mode: "set", requestName: nil) == "set")
+check("which reads back as its tokens",
+      try tokenMeta.get(path: tokenFile, key: "id", requestName: nil).values == ["a", "b"])
+check("setting the same list again is a noop",
+      try tokenMeta.set(path: tokenFile, key: "id", value: "a b", mode: "set", requestName: nil) == "noop")
+
+// MARK: - Query: an id matches whole tokens only
+
+section("Query · id")
+
+// Spotlight is not reachable in a temp dir (not indexed), so this drives the
+// filter the query applies to Spotlight's substring hits.
+let shortIDFile = freshFile()
+let longIDFile = freshFile()
+_ = try? Meta(syncName: nil).set(path: shortIDFile, key: "id", value: "rechnung-1", mode: "add", requestName: nil)
+_ = try? Meta(syncName: nil).set(path: longIDFile, key: "id", value: "rechnung-10", mode: "add", requestName: nil)
+
+check("rechnung-1 does not match the file carrying rechnung-10",
+      Query.keepingWholeToken("rechnung-1", in: [shortIDFile, longIDFile]) == [shortIDFile])
+check("rechnung-10 still finds its own file",
+      Query.keepingWholeToken("rechnung-10", in: [shortIDFile, longIDFile]) == [longIDFile])
+
 // MARK: - Protocol-level dispatch
 
 section("Wire protocol")
@@ -206,6 +266,15 @@ let resolveOut = engine().handle(line: #"{"op":"resolve","blob":"\#(wireBlob)"}"
 
 check("the blob resolves back over the wire", resolveOut.contains("\"ok\":true"))
 check("and names the file it came from", resolveOut.contains("sample.txt"))
+
+let missing = URL(fileURLWithPath: wireFile).deletingLastPathComponent().appendingPathComponent("gone.txt").path
+for line in [#"{"op":"get_meta","path":"\#(missing)","key":"groups"}"#,
+             #"{"op":"set_meta","path":"\#(missing)","key":"id","value":"","mode":"set"}"#,
+             #"{"op":"tags","path":"\#(missing)"}"#] {
+    let out = engine().handle(line: line)
+    check("a missing file is an error, not empty metadata: \(line.prefix(22))…",
+          out.contains("\"ok\":false") && out.contains("no such file"))
+}
 
 // MARK: - Verdict
 

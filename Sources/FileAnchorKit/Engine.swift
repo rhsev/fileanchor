@@ -39,7 +39,7 @@ public struct Engine {
     private func dispatch(_ req: Request) throws -> Response {
         switch req.op {
         case "save":
-            let path = try require(req.path, "path")
+            let path = try requireFile(req.path)
             var r = Response(ok: true)
             r.blob = try Bookmarks.save(path: path)
             return r
@@ -55,27 +55,27 @@ public struct Engine {
             return r
 
         case "tag":
-            let path = try require(req.path, "path")
+            let path = try requireFile(req.path)
             let value = try require(req.value, "value")
             var r = Response(ok: true)
             r.action = try Tags.add(path: path, value: value)
             return r
 
         case "untag":
-            let path = try require(req.path, "path")
+            let path = try requireFile(req.path)
             let value = try require(req.value, "value")
             var r = Response(ok: true)
             r.action = try Tags.remove(path: path, value: value)
             return r
 
         case "tags":
-            let path = try require(req.path, "path")
+            let path = try requireFile(req.path)
             var r = Response(ok: true)
             r.tags = try Tags.get(path: path)
             return r
 
         case "set_meta":
-            let path = try require(req.path, "path")
+            let path = try requireFile(req.path)
             let key = try require(req.key, "key")
             let value = try require(req.value, "value")
             var r = Response(ok: true)
@@ -83,7 +83,7 @@ public struct Engine {
             return r
 
         case "get_meta":
-            let path = try require(req.path, "path")
+            let path = try requireFile(req.path)
             let key = try require(req.key, "key")
             return try meta.get(path: path, key: key, requestName: req.name)
 
@@ -105,6 +105,15 @@ public struct Engine {
     private func require(_ field: String?, _ name: String) throws -> String {
         guard let field else { throw EngineError.missingField(name) }
         return field
+    }
+
+    // getxattr cannot tell a vanished file from one without the attribute, so
+    // without this check a missing file would read as "no metadata" and an
+    // empty set_meta would report success on it.
+    private func requireFile(_ field: String?) throws -> String {
+        let path = try require(field, "path")
+        guard FileManager.default.fileExists(atPath: path) else { throw EngineError.noSuchFile(path) }
+        return path
     }
 
     private func encode(_ response: Response) -> String {

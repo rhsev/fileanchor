@@ -15,7 +15,7 @@ public enum Query {
     public enum Selector: String {
         case tag        // Finder tag (★ marker or binder tag)
         case groups     // binder membership (kMDItemProjects)
-        case id         // recovery id token (kMDItemInformation, substring)
+        case id         // recovery id token (kMDItemInformation, whole token)
         case filename   // exact on-disk basename
 
         func expression(for value: String) -> String {
@@ -55,6 +55,15 @@ public enum Query {
                 paths.append(path)
             }
         }
-        return paths
+        return selector == .id ? keepingWholeToken(value, in: paths) : paths
+    }
+
+    /// Spotlight can only match the id as a substring (`*v*`), so "rechnung-1"
+    /// also hits a file carrying "rechnung-10". Keep only the files whose id
+    /// xattr holds the value as a whole token.
+    public static func keepingWholeToken(_ value: String, in paths: [String]) -> [String] {
+        paths.filter { path in
+            Xattr.get(Meta.informationKey, path: path).map { Meta.tokenize($0).contains(value) } ?? false
+        }
     }
 }

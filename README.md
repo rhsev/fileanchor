@@ -34,7 +34,9 @@ during the build. It also records the results of the metadata experiments.
 
 Batch, line-oriented, order-preserving. One JSON object per line on stdin;
 one JSON object per line on stdout, in input order. A failed op returns
-`{"ok":false,"error":"…"}` for that line and does not halt the stream. The
+`{"ok":false,"error":"…"}` for that line and does not halt the stream — this
+includes a path that does not exist (`no such file`), so a vanished file never
+reads as a file without metadata. The
 process exits 0 after the batch; it is not a daemon. It flushes after every
 response line, so a consumer may hold one engine subprocess open for its whole
 run and interleave requests and responses without deadlock.
@@ -61,12 +63,17 @@ smooth, not batching the wire.
   Finder comment (`kMDItemFinderComment`) uses.
 - **`mode`** (set_meta) ∈ `add` \| `remove` \| `set`. For the multi-valued keys
   (`groups`, `id`) `add`/`remove` are idempotent element ops and `set` replaces
-  the whole value; for the single-valued `sync`/`comment` `add`/`set` write
-  idempotently and `remove` (or an empty `set`) deletes. Defaults to `add`.
+  the whole value (for `id` a space-separated list); an `id` token passed to
+  `add`/`remove` must not contain whitespace. For the single-valued
+  `sync`/`comment` `add`/`set` write idempotently and `remove` deletes. An
+  empty `set` deletes on every key (`removed`, or `noop` if nothing was
+  there). Defaults to `add`.
 - **`by`** (query) ∈ `tag` \| `groups` \| `id` \| `filename` — a *selector*,
   not a Spotlight key. The macOS backend maps each to the right `kMDItem*` key
   (note the verified asymmetry: tags are written under `_kMDItemUserTags` but
-  queried under `kMDItemUserTags`).
+  queried under `kMDItemUserTags`). `by: id` matches whole tokens only:
+  Spotlight can only match it as a substring, so the engine drops hits whose
+  id merely contains the value (`rechnung-1` vs `rechnung-10`).
 - **`stale`** on `resolve` means the bookmark resolved but should be regenerated
   with a fresh `save`.
 

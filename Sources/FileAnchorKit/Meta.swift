@@ -69,9 +69,23 @@ public struct Meta {
         return Xattr.setData(xattr, data: data, path: path)
     }
 
+    /// Split a space-separated multi-value (the `id` shape) into its tokens.
+    /// Shared with Query, which filters Spotlight hits down to whole tokens.
+    static func tokenize(_ raw: String) -> [String] {
+        raw.split(whereSeparator: \.isWhitespace).map(String.init)
+    }
+
     private func tokens(_ xattr: String, path: String) -> [String] {
-        guard let raw = Xattr.get(xattr, path: path) else { return [] }
-        return raw.split { $0 == " " || $0 == "\t" || $0 == "\n" }.map(String.init)
+        Xattr.get(xattr, path: path).map(Self.tokenize) ?? []
+    }
+
+    // The one way every key is deleted — by `remove` on a scalar, by an empty
+    // `set` on any key. Keyed off the raw attribute, so an empty or unparseable
+    // leftover is cleaned up too.
+    private func clear(_ xattr: String, path: String) throws -> String {
+        guard Xattr.getData(xattr, path: path) != nil else { return "noop" }
+        guard Xattr.remove(xattr, path: path) else { throw EngineError.writeFailed(xattr) }
+        return "removed"
     }
 
     // The Finder comment is a single string wrapped in a binary plist — not a
@@ -101,18 +115,12 @@ public struct Meta {
         let current = readPlistString(xattr, path: path)
         switch mode {
         case "add", "set":
-            if value.isEmpty {
-                guard current != nil else { return "noop" }
-                guard Xattr.remove(xattr, path: path) else { throw EngineError.writeFailed(xattr) }
-                return "removed"
-            }
+            if value.isEmpty { return try clear(xattr, path: path) }
             guard current != value else { return "noop" }
             guard writePlistString(value, xattr, path: path) else { throw EngineError.writeFailed(xattr) }
             return "set"
         case "remove":
-            guard current != nil else { return "noop" }
-            guard Xattr.remove(xattr, path: path) else { throw EngineError.writeFailed(xattr) }
-            return "removed"
+            return try clear(xattr, path: path)
         default:
             throw EngineError.invalidMode(mode)
         }
@@ -137,8 +145,9 @@ public struct Meta {
 
     /// Write a meta value. For multi-valued keys: `add` appends a token
     /// idempotently, `remove` drops it (clearing the xattr when it empties),
-    /// `set` replaces the whole value. For single-valued keys: `add`/`set`
-    /// write the value idempotently, `remove` deletes the xattr.
+    /// `set` replaces the whole value (for `id`: a space-separated list). For
+    /// single-valued keys: `add`/`set` write the value idempotently, `remove`
+    /// deletes the xattr. An empty `set` deletes on every key.
     /// Returns "added" | "removed" | "noop" | "set".
     public func set(path: String, key: String, value: String, mode: String?, requestName: String?) throws -> String {
         let r = try resolve(key: key, requestName: requestName)
@@ -169,17 +178,20 @@ public struct Meta {
                 }
                 return "removed"
             case "set":
-                if value.isEmpty {
-                    Xattr.remove(r.xattr, path: path)
-                } else {
-                    guard writeArray(r.xattr, [value], path: path) else { throw EngineError.writeFailed(r.xattr) }
-                }
+                if value.isEmpty { return try clear(r.xattr, path: path) }
+                guard current != [value] else { return "noop" }
+                guard writeArray(r.xattr, [value], path: path) else { throw EngineError.writeFailed(r.xattr) }
                 return "set"
             default:
                 throw EngineError.invalidMode(mode)
             }
         } else if r.multi {
             var current = tokens(r.xattr, path: path)
+            // A single token with whitespace in it would be stored as several
+            // and never match again: re-adding appends duplicates, remove noops.
+            if mode == "add" || mode == "remove", value.contains(where: \.isWhitespace) {
+                throw EngineError.invalidValue("\(key) token contains whitespace")
+            }
             switch mode {
             case "add":
                 guard !current.contains(value) else { return "noop" }
@@ -200,10 +212,11 @@ public struct Meta {
                 }
                 return "removed"
             case "set":
-                if value.isEmpty {
-                    Xattr.remove(r.xattr, path: path)
-                } else {
-                    guard Xattr.set(r.xattr, value: value, path: path) else { throw EngineError.writeFailed(r.xattr) }
+                let replacement = Self.tokenize(value)
+                if replacement.isEmpty { return try clear(r.xattr, path: path) }
+                guard current != replacement else { return "noop" }
+                guard Xattr.set(r.xattr, value: replacement.joined(separator: " "), path: path) else {
+                    throw EngineError.writeFailed(r.xattr)
                 }
                 return "set"
             default:
@@ -213,13 +226,12 @@ public struct Meta {
             let current = Xattr.get(r.xattr, path: path)
             switch mode {
             case "add", "set":
+                if value.isEmpty { return try clear(r.xattr, path: path) }
                 guard current != value else { return "noop" }
                 guard Xattr.set(r.xattr, value: value, path: path) else { throw EngineError.writeFailed(r.xattr) }
                 return "set"
             case "remove":
-                guard current != nil else { return "noop" }
-                guard Xattr.remove(r.xattr, path: path) else { throw EngineError.writeFailed(r.xattr) }
-                return "removed"
+                return try clear(r.xattr, path: path)
             default:
                 throw EngineError.invalidMode(mode)
             }

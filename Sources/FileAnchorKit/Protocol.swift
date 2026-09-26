@@ -49,8 +49,10 @@ public enum EngineError: Error, CustomStringConvertible {
     case unknownKey(String)
     case unknownBy(String)
     case invalidMode(String)
+    case invalidValue(String)
     case syncNameNotConfigured
     case writeFailed(String)
+    case noSuchFile(String)
 
     public var description: String {
         switch self {
@@ -59,9 +61,11 @@ public enum EngineError: Error, CustomStringConvertible {
         case .unknownKey(let k):     return "unknown meta key: \(k) (expected groups|id|sync|comment)"
         case .unknownBy(let b):      return "unknown query selector: \(b) (expected tag|groups|id|filename)"
         case .invalidMode(let m):    return "invalid mode: \(m) (expected add|remove|set)"
+        case .invalidValue(let why): return "invalid value: \(why)"
         case .syncNameNotConfigured:
             return "sync key used but no sync name set (pass --sync-name or a per-request \"name\")"
         case .writeFailed(let what):  return "write failed: \(what)"
+        case .noSuchFile(let path):   return "no such file: \(path)"
         }
     }
 }

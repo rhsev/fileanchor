@@ -120,6 +120,20 @@ names = xattr_names(f)
 check(SYNC_NAME in names, "stored name carries the #S suffix")
 check(SYNC_NAME.split("#")[0] not in names, "the base name (no #S) is absent")
 
+print("\n# an empty set deletes; whitespace in an id token is refused; a missing file errors")
+resp = run_batch([
+    {"op": "set_meta", "path": f, "key": "sync", "value": "", "mode": "set"},
+    {"op": "set_meta", "path": f, "key": "sync", "value": "", "mode": "set"},
+    {"op": "set_meta", "path": f, "key": "id", "value": "a b", "mode": "add"},
+    {"op": "get_meta", "path": os.path.join(tmp, "gone.txt"), "key": "groups"},
+])
+check(resp[0].get("action") == "removed", "empty sync set removes it")
+check(resp[1].get("action") == "noop", "and again is a noop")
+check(SYNC_NAME not in xattr_names(f), "no empty #S attribute left behind")
+check(not resp[2].get("ok"), "id token with a space is refused")
+check(not resp[3].get("ok") and "no such file" in resp[3].get("error", ""),
+      "missing file → ok:false, not empty metadata")
+
 print("\n# comment: single string, binary-plist encoded, idempotent, clears on empty")
 resp = run_batch([
     {"op": "get_meta", "path": f, "key": "comment"},
