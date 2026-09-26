@@ -7,7 +7,12 @@ on:
 
 jobs:
   test:
-    runs-on: macos-15
+    # Both sides of the tagNames setter gate: macos-15 writes tags through the
+    # plist fallback, macos-26 (SDK and OS 26) through the native setter.
+    strategy:
+      matrix:
+        os: [macos-15, macos-26]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       # smoke.py drives the real binary, which `swift run <one product>` does

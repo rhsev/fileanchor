@@ -93,8 +93,8 @@ locate strategies while keeping `mdfind`/Spotlight syntax off the wire — which
 also what keeps the protocol OS-neutral for the Linux port.
 
 **Batch resolve is mandatory** — resolving many blobs in one process is the whole
-point. Every op is one object per line; blank input → null/empty out, order
-preserved.
+point. Every op is one object per line; a blank input line gets an
+`{"ok":false}` line back, so order is preserved.
 
 ## Responsibility split
 
@@ -129,14 +129,18 @@ modules and `LocatorBackend` are thin clients with unchanged signatures, and a
 
 ## Tests
 
-- XCTest suite (`Tests/FileAnchorKitTests`): tag round-trip (★ = U+2605 + an
-  umlaut tag), bookmark save→resolve, `set_meta`/`get_meta` for all four keys
-  (incl. the `comment` binary-plist string), the `#S` sync-xattr round-trip
-  (asserts the stored name carries `#S`), multi-value `kMDItemInformation`.
-  Requires full Xcode (`xctest`) to run.
-- `scripts/smoke.py` drives the **real binary** over the protocol and verifies the
-  same facts against the filesystem — the path a Command-Line-Tools-only machine
-  can use (no `xctest`). Run: `python3 scripts/smoke.py [binary]`.
+- `fileanchor-selftest` — a plain executable, not a `.testTarget` (the Command
+  Line Tools ship no test framework, so a test target passes without running).
+  Library round-trips in a temp dir: tags (★ = U+2605, umlaut, NFD read back as
+  NFC), bookmark save→resolve, `set_meta`/`get_meta` for all four keys (incl. the
+  `comment` binary-plist string, empty-set deletion, whitespace-free `id`
+  tokens), the `#S` sync-xattr name, the whole-token `id` filter, and missing
+  files over the wire. Run: `swift run fileanchor-selftest` or `make test`.
+- `scripts/smoke.py` drives the **real binary** over the protocol and verifies
+  the same facts, plus the wire format and compatibility with blobs from the
+  `bookmark` CLI when it is on PATH. Run: `python3 scripts/smoke.py [binary]`.
+- Not covered: `query` against a live Spotlight index (temp dirs are not
+  indexed); verified by hand.
 
 ## Conformance
 

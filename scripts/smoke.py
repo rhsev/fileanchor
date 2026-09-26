@@ -2,16 +2,17 @@
 """Live smoke test for fileanchor, driving the real binary over the stdio
 protocol. Verifies the wire contract end to end plus the hard-won macOS facts
 (★ U+2605, umlaut tag, the #S sync name, multi-value id) against the
-actual filesystem — the parts a CLT-only machine can't reach via XCTest.
+actual filesystem. fileanchor-selftest checks the library; this checks the
+binary and its wire format.
 
 Run: python3 scripts/smoke.py [path-to-binary]
-Exits non-zero on the first failure.
+Runs every check, then exits non-zero if any failed.
 """
-import json, os, subprocess, sys, tempfile, uuid
+import json, os, shutil, subprocess, sys, tempfile, uuid
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BINARY = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, ".build", "debug", "fileanchor")
-SYNC_NAME = "com.markbinder.id#S"
+SYNC_NAME = "com.fileregister.id#S"
 
 fails = 0
 def check(cond, label):
@@ -58,15 +59,15 @@ check(len(resp) == 3, "three responses for three requests")
 check(resp[0].get("ok") and not resp[1].get("ok") and resp[2].get("ok"),
       "order preserved: ok, negative, ok")
 
-print("\n# vendored bookmark blob is resolvable (migration-safe)")
-vendored = os.path.join(os.path.dirname(ROOT), "markbinder", "vendor", "bookmark")
-if os.path.exists(vendored):
-    vblob = subprocess.run([vendored, "save", f], capture_output=True, text=True).stdout.strip()
+print("\n# a blob from ttscoff's `bookmark` CLI is resolvable (migration-safe)")
+legacy = os.environ.get("BOOKMARK") or shutil.which("bookmark")
+if legacy:
+    vblob = subprocess.run([legacy, "save", f], capture_output=True, text=True).stdout.strip()
     resp = run_batch([{"op": "resolve", "blob": vblob}])
     check(resp[0].get("ok") and os.path.realpath(resp[0].get("path","")) == os.path.realpath(f),
-          "fileanchor resolves a blob made by the vendored `bookmark`")
+          f"fileanchor resolves a blob made by {legacy}")
 else:
-    print(f"  [skip] vendored bookmark not found at {vendored}")
+    print("  [skip] no `bookmark` on PATH (or $BOOKMARK)")
 
 print("\n# Finder tags: ★ marker + umlaut, idempotent")
 resp = run_batch([
@@ -177,6 +178,6 @@ resp = run_batch([
 check(len(resp) == 2 and not resp[0].get("ok") and resp[1].get("ok"),
       "unknown op → ok:false, next op still runs")
 
-import shutil; shutil.rmtree(tmp, ignore_errors=True)
+shutil.rmtree(tmp, ignore_errors=True)
 print(f"\n{'PASSED' if fails == 0 else str(fails) + ' FAILED'}")
 sys.exit(1 if fails else 0)

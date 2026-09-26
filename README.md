@@ -89,7 +89,13 @@ $ fileanchor --sync-name com.fileregister.id#S
 {"op":"tag","path":"/Users/me/doc.pdf","value":"★"}
 {"ok":true,"action":"added"}
 {"op":"get_meta","path":"/Users/me/doc.pdf","key":"sync"}
-{"ok":true,"value":null}
+{"ok":true}
+```
+
+Fields that do not apply are left out rather than sent as `null` — an absent
+`value` means no value. Keys come in sorted order, so output is byte-stable.
+
+```
 ```
 
 ### The sync name
