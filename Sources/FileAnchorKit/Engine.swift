@@ -13,9 +13,12 @@ public struct Engine {
     private let encoder: JSONEncoder = {
         let e = JSONEncoder()
         // Compact, one object per line; keep slashes raw so paths read cleanly.
-        e.outputFormatting = [.withoutEscapingSlashes]
+        // Sorted keys make the output byte-stable, so lines can be diffed.
+        e.outputFormatting = [.withoutEscapingSlashes, .sortedKeys]
         return e
     }()
+
+    private let decoder = JSONDecoder()
 
     /// Handle one raw input line, returning one JSON response line (no newline).
     /// Never throws: protocol/op failures become `{"ok":false,"error":...}` so a
@@ -24,7 +27,7 @@ public struct Engine {
         let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return encode(.failure("empty input line")) }
         guard let data = trimmed.data(using: .utf8),
-              let request = try? JSONDecoder().decode(Request.self, from: data) else {
+              let request = try? decoder.decode(Request.self, from: data) else {
             return encode(.failure("invalid request json"))
         }
         do {

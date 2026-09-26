@@ -89,6 +89,15 @@ check("★ is removed", try Tags.remove(path: tagFile, value: "★") == "removed
 check("removing ★ again is a noop", try Tags.remove(path: tagFile, value: "★") == "noop")
 check("★ is gone afterwards", try !Tags.get(path: tagFile).contains("★"))
 
+// A tag stored decomposed (NFD) reads back precomposed, byte for byte.
+let nfdTagFile = freshFile()
+let nfd = "Geschäft".decomposedStringWithCanonicalMapping
+_ = try? Tags.add(path: nfdTagFile, value: nfd)
+check("an NFD tag reads back as NFC bytes",
+      (try? Tags.get(path: nfdTagFile))?.map { Array($0.utf8) } == [Array("Geschäft".precomposedStringWithCanonicalMapping.utf8)])
+check("and removing it by its NFC form works",
+      try Tags.remove(path: nfdTagFile, value: "Geschäft") == "removed")
+
 // MARK: - Meta: groups is a real array
 
 section("Meta · groups")

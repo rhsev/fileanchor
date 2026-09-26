@@ -12,16 +12,28 @@ import FileAnchorKit
 // `sync` key (e.g. com.fileregister.id#S). A per-request "name" field
 // overrides it. groups/id/comment map to fixed Apple keys and need no flag.
 
+// Anything else on the command line is refused at startup: a typo like
+// --sync_name would otherwise pass silently and only surface later, as a
+// confusing "no sync name set" on the first sync op.
+func usageError(_ message: String) -> Never {
+    FileHandle.standardError.write(Data("fileanchor: \(message)\nusage: fileanchor [--sync-name <xattr-name>]\n".utf8))
+    exit(2)
+}
+
 func parseSyncName(_ args: [String]) -> String? {
+    var syncName: String?
     var iterator = args.dropFirst().makeIterator()
     while let arg = iterator.next() {
         if arg == "--sync-name" {
-            return iterator.next()
+            guard let value = iterator.next() else { usageError("--sync-name needs a value") }
+            syncName = value
         } else if arg.hasPrefix("--sync-name=") {
-            return String(arg.dropFirst("--sync-name=".count))
+            syncName = String(arg.dropFirst("--sync-name=".count))
+        } else {
+            usageError("unknown argument: \(arg)")
         }
     }
-    return nil
+    return syncName
 }
 
 let engine = Engine(syncName: parseSyncName(CommandLine.arguments))

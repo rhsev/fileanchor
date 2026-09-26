@@ -9,11 +9,14 @@ import Foundation
 /// This is also where the ★ managed marker (U+2605) and any opt-in binder tags
 /// live — they are all just Finder tag strings to this layer.
 public enum Tags {
-    /// Current tags as plain strings (color suffix already stripped by Foundation).
+    /// Current tags as plain strings (color suffix already stripped by Foundation),
+    /// NFC-normalized like comment reads: a tag stored decomposed would otherwise
+    /// read back byte-different from the same text precomposed. Swift compares
+    /// strings canonically, so add/remove match either form regardless.
     public static func get(path: String) throws -> [String] {
         let url = URL(fileURLWithPath: path)
         let values = try url.resourceValues(forKeys: [.tagNamesKey])
-        return values.tagNames ?? []
+        return values.tagNames?.map(\.precomposedStringWithCanonicalMapping) ?? []
     }
 
     /// Add a tag if absent. Returns "added" or "noop". Idempotent.

@@ -29,10 +29,13 @@ public enum Query {
         }
     }
 
-    /// Escape a value for embedding in a double-quoted MDQuery string.
+    /// Escape a value for embedding in a double-quoted MDQuery string. An
+    /// unescaped `*` is a wildcard: filename "a*b.txt" would match "axxb.txt"
+    /// and miss itself (verified).
     private static func escape(_ value: String) -> String {
         value.replacingOccurrences(of: "\\", with: "\\\\")
              .replacingOccurrences(of: "\"", with: "\\\"")
+             .replacingOccurrences(of: "*", with: "\\*")
     }
 
     /// Run a synchronous Spotlight query, returning absolute paths in no
