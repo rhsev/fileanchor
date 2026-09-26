@@ -101,9 +101,9 @@ Things a Linux engine will run into:
   adding its own flag). It would be cleaner, but the mapping belongs to each
   engine anyway, and the current flag keeps working without a change.
 
-## Open
+## Consumers
 
-- fileregister allows commas in binder names (it only replaces slashes and
-  control characters). Such a binder would now be refused whenever it is
-  written as a tag or a group. fileregister should reject or map the comma
-  when a binder is created, not fail later at the xattr write.
+- fileregister checks binder names against the label rule where a name is
+  introduced (add, rename's new name, write, unmarshal), since a binder is
+  written as a tag or a group. Binders with a comma were allowed before and
+  are refused since then; existing ones can still be renamed away.
