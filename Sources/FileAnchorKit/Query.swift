@@ -66,7 +66,7 @@ public enum Query {
     /// xattr holds the value as a whole token.
     public static func keepingWholeToken(_ value: String, in paths: [String]) -> [String] {
         paths.filter { path in
-            Xattr.get(Meta.informationKey, path: path).map { Meta.tokenize($0).contains(value) } ?? false
+            Meta.idString(Meta.informationKey, path: path).map { Meta.tokenize($0).contains(value) } ?? false
         }
     }
 }

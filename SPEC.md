@@ -58,7 +58,10 @@ Established empirically (macOS 26.4) — full reference in fileregister's
 2. **Spotlight queries** use the key `kMDItemUserTags` (**no** underscore). Write
    `_kMDItemUserTags`, query `kMDItemUserTags`.
 3. **Bookmark id** is also cached in `com.apple.metadata:kMDItemInformation`,
-   space-separated, **multi-valued**.
+   space-separated, **multi-valued**, stored as a **binary-plist string**.
+   Spotlight parses `com.apple.metadata:*` attributes as property lists: a
+   single raw token happens to be a valid old-style plist, but raw `"id1 id2"`
+   is not and is not indexed at all (verified on macOS 15.8 and 27.2).
 4. **Cross-device id.** A custom-namespace, `#S`-flagged xattr whose name
    the caller supplies via `--sync-name` (fileregister passes
    `com.fileregister.id#S`). The `#S` is **part of the stored attribute name** —

@@ -77,8 +77,25 @@ public struct Meta {
         raw.split(whereSeparator: \.isWhitespace).map(String.init)
     }
 
+    // The id tokens live in one string, stored as a property list like every
+    // com.apple.metadata attribute: Spotlight parses these as plists, and a
+    // raw "id1 id2" is no valid plist — it was not indexed at all, so a file
+    // with two ids could not be found by either (verified, macOS 15.8 and
+    // 27.2). A single raw token parses as an old-style plist string, so ids
+    // written raw before still read — exactly as Spotlight reads them.
     private func tokens(_ xattr: String, path: String) -> [String] {
-        Xattr.get(xattr, path: path).map(Self.tokenize) ?? []
+        Self.idString(xattr, path: path).map(Self.tokenize) ?? []
+    }
+
+    static func idString(_ xattr: String, path: String) -> String? {
+        guard let data = Xattr.getData(xattr, path: path), !data.isEmpty,
+              let string = try? PropertyListSerialization.propertyList(from: data, format: nil) as? String
+        else { return nil }
+        return string
+    }
+
+    private func writeTokens(_ tokens: [String], _ xattr: String, path: String) -> Bool {
+        writePlistString(tokens.joined(separator: " "), xattr, path: path)
     }
 
     // The one way every key is deleted — by `remove` on a scalar, by an empty
@@ -211,7 +228,7 @@ public struct Meta {
             case "add":
                 guard !current.contains(value) else { return "noop" }
                 current.append(value)
-                guard Xattr.set(r.xattr, value: current.joined(separator: " "), path: path) else {
+                guard writeTokens(current, r.xattr, path: path) else {
                     throw EngineError.writeFailed(r.xattr)
                 }
                 return "added"
@@ -221,7 +238,7 @@ public struct Meta {
                 if current.isEmpty {
                     guard Xattr.remove(r.xattr, path: path) else { throw EngineError.writeFailed(r.xattr) }
                 } else {
-                    guard Xattr.set(r.xattr, value: current.joined(separator: " "), path: path) else {
+                    guard writeTokens(current, r.xattr, path: path) else {
                         throw EngineError.writeFailed(r.xattr)
                     }
                 }
@@ -230,7 +247,7 @@ public struct Meta {
                 let replacement = Self.tokenize(value)
                 if replacement.isEmpty { return try clear(r.xattr, path: path) }
                 guard current != replacement else { return "noop" }
-                guard Xattr.set(r.xattr, value: replacement.joined(separator: " "), path: path) else {
+                guard writeTokens(replacement, r.xattr, path: path) else {
                     throw EngineError.writeFailed(r.xattr)
                 }
                 return "set"

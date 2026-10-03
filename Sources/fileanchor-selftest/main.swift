@@ -151,6 +151,21 @@ check("a second id joins it",
       try idMeta.set(path: idFile, key: "id", value: "456", mode: "add", requestName: nil) == "added")
 check("both ids read back",
       try idMeta.get(path: idFile, key: "id", requestName: nil).values == ["123", "456"])
+// Spotlight parses com.apple.metadata attributes as property lists; a raw
+// "123 456" is none and was not indexed at all.
+check("the ids are stored as a binary plist string",
+      Xattr.getData("com.apple.metadata:kMDItemInformation", path: idFile)
+          .map { $0.starts(with: Array("bplist".utf8)) } == true)
+
+// An id written raw by an earlier version (a single token is an old-style
+// plist string) still reads, and the next write stores it as a plist.
+let legacyIDFile = freshFile()
+Xattr.set("com.apple.metadata:kMDItemInformation", value: "987654321", path: legacyIDFile)
+check("a raw single id from before still reads",
+      try idMeta.get(path: legacyIDFile, key: "id", requestName: nil).values == ["987654321"])
+check("and a second id joins it",
+      try idMeta.set(path: legacyIDFile, key: "id", value: "111", mode: "add", requestName: nil) == "added"
+          && (try idMeta.get(path: legacyIDFile, key: "id", requestName: nil).values) == ["987654321", "111"])
 
 // MARK: - Meta: sync is single-valued, under the #S name
 
