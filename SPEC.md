@@ -80,7 +80,7 @@ failure.
 | op | input | output |
 |---|---|---|
 | `save` | `path` | `{ok, blob}` — opaque bookmark blob (base64) |
-| `resolve` | `blob` | `{ok, path}` or `{ok:false}` if unresolvable |
+| `resolve` | `blob` | `{ok, path[, stale]}`, or `{ok:false, last_path}` if unresolvable — never mounts a volume |
 | `tag` / `untag` | `path`, `value` | `{ok, action: added\|noop\|removed}` |
 | `tags` | `path` | `{ok, tags: [...]}` |
 | `set_meta` / `get_meta` | `path`, `key` (`groups`\|`id`\|`sync`\|`comment`), `value` | `{ok, action}` / `{ok, value}` |

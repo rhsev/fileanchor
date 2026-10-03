@@ -49,8 +49,11 @@ public struct Engine {
 
         case "resolve":
             // Unresolvable / empty blob is a valid negative, not a hard error.
+            // last_path lets the caller tell a gone file from an unmounted one.
             guard let resolved = Bookmarks.resolve(blob: req.blob ?? "") else {
-                return .failure("unresolvable")
+                var r = Response.failure("unresolvable")
+                r.lastPath = Bookmarks.recordedPath(blob: req.blob ?? "")
+                return r
             }
             var r = Response(ok: true)
             r.path = resolved.path

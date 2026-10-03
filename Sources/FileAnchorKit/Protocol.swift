@@ -33,6 +33,12 @@ public struct Response: Encodable {
     public var values: [String]?    // get_meta multi-valued (groups/id)
     public var paths: [String]?     // query results
     public var stale: Bool?         // resolve: blob is stale, caller should re-save
+    public var lastPath: String?    // resolve, when unresolvable: the path the blob recorded
+
+    enum CodingKeys: String, CodingKey {
+        case ok, error, blob, path, action, tags, value, values, paths, stale
+        case lastPath = "last_path"
+    }
 
     public init(ok: Bool) { self.ok = ok }
 

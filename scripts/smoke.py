@@ -66,6 +66,15 @@ check(len(resp) == 3, "three responses for three requests")
 check(resp[0].get("ok") and not resp[1].get("ok") and resp[2].get("ok"),
       "order preserved: ok, negative, ok")
 
+print("\n# an unresolvable blob names the path it recorded")
+gone = os.path.join(tmp, "gone.txt")
+with open(gone, "w") as fh: fh.write("x")
+gblob = run_batch([{"op": "save", "path": gone}])[0].get("blob", "")
+os.remove(gone)
+resp = run_batch([{"op": "resolve", "blob": gblob}])
+check(not resp[0].get("ok") and os.path.basename(resp[0].get("last_path", "")) == "gone.txt",
+      "resolve → ok:false with last_path")
+
 print("\n# macOS: a blob from ttscoff's `bookmark` CLI is resolvable (migration-safe)")
 legacy = os.environ.get("BOOKMARK") or shutil.which("bookmark")
 if not MACOS:

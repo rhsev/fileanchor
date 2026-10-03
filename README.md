@@ -52,7 +52,7 @@ smooth, not batching the wire.
 | op | input fields | output |
 |---|---|---|
 | `save` | `path` | `{ok, blob}` — opaque base64 bookmark |
-| `resolve` | `blob` | `{ok, path[, stale]}`; empty/unresolvable → `{ok:false}` |
+| `resolve` | `blob` | `{ok, path[, stale]}`; unresolvable → `{ok:false, last_path}` |
 | `tag` / `untag` | `path`, `value` | `{ok, action: added\|removed\|noop}` |
 | `tags` | `path` | `{ok, tags:[…]}` — names only, color suffix stripped |
 | `set_meta` | `path`, `key`, `value`, `mode` | `{ok, action: added\|removed\|set\|noop}` |
@@ -81,6 +81,9 @@ smooth, not batching the wire.
   whitespace. A comment is free text up to 1 KiB. Everything is stored NFC.
   Removal takes any value, so existing ones can be cleaned up. The rules hold
   for every platform's engine; [PLATFORMS.md](PLATFORMS.md) has the reasons.
+- **`last_path`** on a failed `resolve` is the path the blob recorded when it
+  was saved. It tells a file that is gone from one on a volume that is not
+  mounted. Resolving never mounts a volume or shows UI.
 - **`stale`** on `resolve` means the bookmark resolved but should be regenerated
   with a fresh `save`.
 

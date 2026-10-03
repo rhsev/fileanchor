@@ -28,15 +28,30 @@ public enum Bookmarks {
     /// Resolve a blob to a path. Returns nil when the blob is empty or cannot be
     /// resolved (the move-resilient negative — not an error). `stale` signals the
     /// bookmark resolved but should be regenerated with a fresh `save`.
+    ///
+    /// Resolving never mounts a volume or shows UI: an engine call must not
+    /// block on an unreachable server, and a file on a volume that is not
+    /// mounted is not "found" by mounting it behind the caller's back. The
+    /// caller learns where it was from `recordedPath`.
     public static func resolve(blob: String) -> Resolved? {
         guard !blob.isEmpty, let data = Data(base64Encoded: blob) else { return nil }
         var stale = false
         guard let url = try? URL(resolvingBookmarkData: data,
-                                 options: [],
+                                 options: [.withoutMounting, .withoutUI],
                                  relativeTo: nil,
                                  bookmarkDataIsStale: &stale) else {
             return nil
         }
         return Resolved(path: url.path, stale: stale)
+    }
+
+    /// The path a blob recorded when it was saved, read from the bookmark
+    /// data without resolving it. For an unresolvable blob this tells a file
+    /// that is gone from one on a volume that is simply not mounted.
+    public static func recordedPath(blob: String) -> String? {
+        guard !blob.isEmpty, let data = Data(base64Encoded: blob),
+              let values = URL.resourceValues(forKeys: [.pathKey], fromBookmarkData: data)
+        else { return nil }
+        return values.path
     }
 }

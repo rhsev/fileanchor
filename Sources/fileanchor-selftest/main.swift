@@ -72,6 +72,20 @@ check("resolve returns the file it was saved from",
       } == URL(fileURLWithPath: bookmarkFile).resolvingSymlinksInPath().path)
 
 check("an empty blob is a negative, not a crash", Bookmarks.resolve(blob: "") == nil)
+
+// A moved file still resolves; a deleted one does not, but its blob still
+// tells where it was.
+let movedFile = freshFile()
+let movedBlob = (try? Bookmarks.save(path: movedFile)) ?? ""
+let movedTo = URL(fileURLWithPath: movedFile).deletingLastPathComponent().appendingPathComponent("moved.txt").path
+try? FileManager.default.moveItem(atPath: movedFile, toPath: movedTo)
+check("a moved file resolves to its new place",
+      Bookmarks.resolve(blob: movedBlob).map { URL(fileURLWithPath: $0.path).resolvingSymlinksInPath().path }
+          == URL(fileURLWithPath: movedTo).resolvingSymlinksInPath().path)
+try? FileManager.default.removeItem(atPath: movedTo)
+check("a deleted file does not resolve", Bookmarks.resolve(blob: movedBlob) == nil)
+check("but its blob still names the path it recorded",
+      Bookmarks.recordedPath(blob: movedBlob).map { URL(fileURLWithPath: $0).lastPathComponent } == "sample.txt")
 check("a malformed blob is a negative too", Bookmarks.resolve(blob: "not-base64-!!!") == nil)
 
 // MARK: - Tags, including the ★ marker and an umlaut
