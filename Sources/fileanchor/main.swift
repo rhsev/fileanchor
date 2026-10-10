@@ -7,6 +7,7 @@ import FileAnchorKit
 //
 // Usage:
 //   fileanchor [--sync-name <xattr-name>]
+//   fileanchor --version
 //
 // --sync-name sets the default xattr name for the single-valued cross-device
 // `sync` key (e.g. com.fileregister.id#S). A per-request "name" field
@@ -16,7 +17,7 @@ import FileAnchorKit
 // --sync_name would otherwise pass silently and only surface later, as a
 // confusing "no sync name set" on the first sync op.
 func usageError(_ message: String) -> Never {
-    FileHandle.standardError.write(Data("fileanchor: \(message)\nusage: fileanchor [--sync-name <xattr-name>]\n".utf8))
+    FileHandle.standardError.write(Data("fileanchor: \(message)\nusage: fileanchor [--sync-name <xattr-name>] | --version\n".utf8))
     exit(2)
 }
 
@@ -24,7 +25,10 @@ func parseSyncName(_ args: [String]) -> String? {
     var syncName: String?
     var iterator = args.dropFirst().makeIterator()
     while let arg = iterator.next() {
-        if arg == "--sync-name" {
+        if arg == "--version" || arg == "-v" {
+            print("fileanchor \(fileanchorVersion)")
+            exit(0)
+        } else if arg == "--sync-name" {
             guard let value = iterator.next() else { usageError("--sync-name needs a value") }
             syncName = value
         } else if arg.hasPrefix("--sync-name=") {

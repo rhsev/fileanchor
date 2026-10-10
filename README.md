@@ -124,6 +124,7 @@ SwiftPM, arm64, macOS 13 or later (tested on macOS 15):
 
 ```
 swift build -c release        # binary at .build/release/fileanchor
+.build/release/fileanchor --version
 swift run fileanchor-selftest # the checks: engine round-trips against a temp dir
 python3 scripts/smoke.py      # live wire-protocol smoke against the built binary
 ```
