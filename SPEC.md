@@ -106,9 +106,8 @@ point. Every op is one object per line; a blank input line gets an
 
 The engine is **stateless about the id↔blob map**: `save(path) → blob`,
 `resolve(blob) → path`. The consumer owns the map. (fileregister keeps it in
-`~/.local/share/bookmarks.json`; its `Bookmarks`/`Subject`/`Tags`/`Managed`
-modules and `LocatorBackend` are thin clients with unchanged signatures, and a
-`FileAnchor` client holds one engine process open for the run.)
+`~/.local/share/fileregister/bookmarks.json`; its bookmark, metadata and locator
+code are thin clients, and one engine process is held open for the run.)
 
 ## Implementation notes / traps
 
