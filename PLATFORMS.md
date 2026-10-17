@@ -70,6 +70,7 @@ table records the macOS engine as built and a proposal for Linux.
 | `sync` | the name from `--sync-name`, literally (`com.fileregister.id#S`) | the same name under `user.`, without `#S` (`user.com.fileregister.id`) |
 | `save`/`resolve` | Foundation bookmark, base64; resolved without mounting, the path read back with realpath(3), because Foundation decomposes every name it resolves; `last_path` read from the bookmark data | its own opaque blob, e.g. device + inode + last path. `stale` when the path moved, `last_path` when it does not resolve |
 | `query` | synchronous Spotlight (`MDQuery`) | no system index: `plocate` for `filename`, otherwise a walk that reads xattrs, or an empty result |
+| `searchable` | `mdutil -s` on the volume root, cached per volume; yes only for "Indexing enabled." | yes only under roots the engine walks completely; with none configured, no everywhere |
 
 **`#S` stays on the wire.** `--sync-name com.fileregister.id#S` is what
 fileregister passes, and it passes it on every OS. `#S` is macOS's flag for an

@@ -88,6 +88,17 @@ failure.
 | `tags` | `path` | `{ok, tags: [...]}` |
 | `set_meta` / `get_meta` | `path`, `key` (`groups`\|`id`\|`sync`\|`comment`), `value` | `{ok, action}` / `{ok, value}` |
 | `query` | `by` (`id`\|`filename`\|`groups`\|`tag`), `value` | `{ok, paths: [...]}` |
+| `searchable` | `path` | `{ok, searchable}` — whether `query` would find a file under `path` if one were there |
+
+**A miss is a fact only where `searchable` says so.** `query` is a recovery
+path, and an engine may search a place only partly or not at all. Before a
+consumer reads an empty answer as "no file carries this", it asks
+`searchable` for the place the file was. The answer is for the volume the
+nearest existing ancestor of `path` lies on, because the file asked about is
+usually gone; so a consumer asks only about places it has found mounted. An
+engine says yes only when it knows its search covers that place. A wrong no
+withholds a verdict, a wrong yes can cost an entry. An engine without the op
+answers `unknown op` like for any other, and a consumer treats that as no.
 
 **Paths keep their bytes.** Every path an engine returns (`resolve`'s `path`,
 `query`'s `paths`) is byte for byte what the file system holds, in the Unicode

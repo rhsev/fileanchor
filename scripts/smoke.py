@@ -94,6 +94,19 @@ for name in (unicodedata.normalize("NFC", "Pässe-nfc.md"), unicodedata.normaliz
     form = "NFC" if name == unicodedata.normalize("NFC", name) else "NFD"
     check(want[1] is not None and have == want, f"{form} file in an NFC directory resolves byte for byte")
 
+print("\n# searchable answers for a place, also one whose file is gone")
+resp = run_batch([
+    {"op": "searchable", "path": tmp},
+    {"op": "searchable", "path": os.path.join(tmp, "no-such-dir", "gone.pdf")},
+    {"op": "searchable"},
+])
+check(resp[0].get("ok") and isinstance(resp[0].get("searchable"), bool), "searchable answers yes or no for a directory")
+check(resp[1].get("ok") and resp[1].get("searchable") == resp[0].get("searchable"),
+      "a path that does not exist gets the answer of the place it was in")
+check(not resp[2].get("ok"), "searchable without a path → ok:false")
+if not MACOS:
+    check(resp[0].get("searchable") is False, "an engine with no configured roots searches nowhere completely")
+
 print("\n# macOS: a blob from ttscoff's `bookmark` CLI is resolvable (migration-safe)")
 legacy = os.environ.get("BOOKMARK") or shutil.which("bookmark")
 if not MACOS:

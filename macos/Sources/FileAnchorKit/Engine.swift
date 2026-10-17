@@ -5,6 +5,7 @@ import Foundation
 /// executable; this is what the tests drive directly.
 public struct Engine {
     private let meta: Meta
+    private let coverage = SpotlightCoverage()
 
     public init(syncName: String?) {
         self.meta = Meta(syncName: syncName)
@@ -101,6 +102,15 @@ public struct Engine {
             let value = try require(req.value, "value")
             var r = Response(ok: true)
             r.paths = Query.run(selector: selector, value: value)
+            return r
+
+        case "searchable":
+            // Not requireFile: the question is about a place, and the file a
+            // consumer asks about is usually the one that is gone.
+            let path = try require(req.path, "path")
+            guard !path.isEmpty else { throw EngineError.missingField("path") }
+            var r = Response(ok: true)
+            r.searchable = coverage.searchable(path: path)
             return r
 
         default:

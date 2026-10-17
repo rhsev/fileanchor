@@ -381,6 +381,15 @@ let resolveOut = engine().handle(line: #"{"op":"resolve","blob":"\#(wireBlob)"}"
 check("the blob resolves back over the wire", resolveOut.contains("\"ok\":true"))
 check("and names the file it came from", resolveOut.contains("sample.txt"))
 
+// searchable answers for a place, also when the file asked about is gone.
+let wireDir = URL(fileURLWithPath: wireFile).deletingLastPathComponent().path
+let here = engine().handle(line: #"{"op":"searchable","path":"\#(wireDir)"}"#)
+let gone = engine().handle(line: #"{"op":"searchable","path":"\#(wireDir)/no-such/gone.pdf"}"#)
+check("searchable answers yes or no", here.contains("\"searchable\":true") || here.contains("\"searchable\":false"))
+check("a gone file gets the answer of the place it was in", here == gone)
+check("searchable without a path is a soft error",
+      engine().handle(line: #"{"op":"searchable"}"#).contains("\"ok\":false"))
+
 let missing = URL(fileURLWithPath: wireFile).deletingLastPathComponent().appendingPathComponent("gone.txt").path
 for line in [#"{"op":"get_meta","path":"\#(missing)","key":"groups"}"#,
              #"{"op":"set_meta","path":"\#(missing)","key":"id","value":"","mode":"set"}"#,
