@@ -58,6 +58,7 @@ smooth, not batching the wire.
 | `set_meta` | `path`, `key`, `value`, `mode` | `{ok, action: added\|removed\|set\|noop}` |
 | `get_meta` | `path`, `key` | `{ok, value}` (sync/comment) or `{ok, values:[…]}` (groups/id) |
 | `query` | `by`, `value` | `{ok, paths:[…]}` — Spotlight lookup |
+| `searchable` | `path` | `{ok, searchable}` — whether `query` would find a file there |
 
 - **`key`** ∈ `groups` \| `id` \| `sync` \| `comment`. `groups` is a real array
   (one element per value); `id` is space-separated multi-valued; `sync` is
@@ -81,6 +82,15 @@ smooth, not batching the wire.
   whitespace. A comment is free text up to 1 KiB. Everything is stored NFC.
   Removal takes any value, so existing ones can be cleaned up. The rules hold
   for every platform's engine; [PLATFORMS.md](PLATFORMS.md) has the reasons.
+- **Paths** the engine returns (`resolve`'s `path`, `query`'s `paths`) are byte
+  for byte what the file system holds, each name in the Unicode form it has on
+  disk. Foundation hands a resolved bookmark back with every name decomposed;
+  the engine reads the names back from the volume instead.
+- **`searchable`** says whether `query` covers a place: on macOS, whether
+  Spotlight indexes the volume the nearest existing ancestor of `path` lies on.
+  It is yes only for an enabled index. A consumer asks it before it reads an
+  empty `query` as "no file carries this", and only about a volume it has found
+  mounted.
 - **`last_path`** on a failed `resolve` is the path the blob recorded when it
   was saved. It tells a file that is gone from one on a volume that is not
   mounted. Resolving never mounts a volume or shows UI.
