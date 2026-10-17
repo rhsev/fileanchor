@@ -68,7 +68,7 @@ table records the macOS engine as built and a proposal for Linux.
 | `groups` | `com.apple.metadata:kMDItemProjects`, binary-plist array | `user.fileanchor.groups`, comma-separated |
 | `id` | `com.apple.metadata:kMDItemInformation`, space-separated, as a binary-plist string (Spotlight indexes nothing else once there are two ids) | `user.fileanchor.id`, space-separated |
 | `sync` | the name from `--sync-name`, literally (`com.fileregister.id#S`) | the same name under `user.`, without `#S` (`user.com.fileregister.id`) |
-| `save`/`resolve` | Foundation bookmark, base64; resolved without mounting, `last_path` read from the bookmark data | its own opaque blob, e.g. device + inode + last path. `stale` when the path moved, `last_path` when it does not resolve |
+| `save`/`resolve` | Foundation bookmark, base64; resolved without mounting, the path read back with realpath(3), because Foundation decomposes every name it resolves; `last_path` read from the bookmark data | its own opaque blob, e.g. device + inode + last path. `stale` when the path moved, `last_path` when it does not resolve |
 | `query` | synchronous Spotlight (`MDQuery`) | no system index: `plocate` for `filename`, otherwise a walk that reads xattrs, or an empty result |
 
 **`#S` stays on the wire.** `--sync-name com.fileregister.id#S` is what

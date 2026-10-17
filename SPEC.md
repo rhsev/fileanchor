@@ -89,6 +89,14 @@ failure.
 | `set_meta` / `get_meta` | `path`, `key` (`groups`\|`id`\|`sync`\|`comment`), `value` | `{ok, action}` / `{ok, value}` |
 | `query` | `by` (`id`\|`filename`\|`groups`\|`tag`), `value` | `{ok, paths: [...]}` |
 
+**Paths keep their bytes.** Every path an engine returns (`resolve`'s `path`,
+`query`'s `paths`) is byte for byte what the file system holds, in the Unicode
+form each name has on disk. A consumer can compare it with a directory listing
+and open it on any OS; on Linux the precomposed and the decomposed spelling of
+a name are two different files. `last_path` is the exception: it is what the
+blob recorded, and the file it names may be gone. Values are the other way
+round, stored NFC (below), because they are text, not names on a volume.
+
 Written values must pass the value rules in [PLATFORMS.md](PLATFORMS.md)
 (strict on write, tolerant on read and removal, stored NFC). A path that does
 not exist is a per-op error (`no such file`), never empty metadata. An empty `set_meta … mode:set` deletes on every key. `query by:id`
@@ -143,7 +151,9 @@ code are thin clients, and one engine process is held open for the run.)
   files over the wire. Run: `swift run fileanchor-selftest` or `make test`.
 - `scripts/smoke.py` drives the **real binary** over the protocol and verifies
   the same facts, plus the wire format and compatibility with blobs from the
-  `bookmark` CLI when it is on PATH. Run: `python3 scripts/smoke.py [binary]`.
+  `bookmark` CLI when it is on PATH. It also checks that `resolve` returns an NFC
+  and an NFD file name byte for byte as listed on disk. Run:
+  `python3 scripts/smoke.py [binary]`.
 - Not covered: `query` against a live Spotlight index (temp dirs are not
   indexed); verified by hand.
 

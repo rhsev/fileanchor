@@ -75,6 +75,25 @@ resp = run_batch([{"op": "resolve", "blob": gblob}])
 check(not resp[0].get("ok") and os.path.basename(resp[0].get("last_path", "")) == "gone.txt",
       "resolve → ok:false with last_path")
 
+print("\n# resolve returns the path in the bytes the file system holds")
+# A name can be stored precomposed (NFC) or decomposed (NFD), and a directory
+# and the file in it can differ. macOS hands a resolved bookmark back with every
+# name decomposed, whatever the volume holds; on Linux the two forms are even
+# two different files. The engine returns what is on disk, compared byte for
+# byte against the directory listing.
+forms = os.path.join(tmp, unicodedata.normalize("NFC", "Verträge"))
+os.mkdir(forms)
+for name in (unicodedata.normalize("NFC", "Pässe-nfc.md"), unicodedata.normalize("NFD", "Pässe-nfd.md")):
+    p = os.path.join(forms, name)
+    with open(p, "w") as fh: fh.write("x")
+    b = run_batch([{"op": "save", "path": p}])[0].get("blob", "")
+    got = run_batch([{"op": "resolve", "blob": b}])[0].get("path", "")
+    listed = [e for e in os.listdir(forms) if unicodedata.normalize("NFC", e) == unicodedata.normalize("NFC", name)]
+    want = (os.path.basename(forms), listed[0] if listed else None)
+    have = (os.path.basename(os.path.dirname(got)), os.path.basename(got))
+    form = "NFC" if name == unicodedata.normalize("NFC", name) else "NFD"
+    check(want[1] is not None and have == want, f"{form} file in an NFC directory resolves byte for byte")
+
 print("\n# macOS: a blob from ttscoff's `bookmark` CLI is resolvable (migration-safe)")
 legacy = os.environ.get("BOOKMARK") or shutil.which("bookmark")
 if not MACOS:

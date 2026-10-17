@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 /// Durable, move-resilient file identity via Foundation bookmark data — the
 /// in-process replacement for shelling out to the `bookmark` CLI.
@@ -29,6 +30,9 @@ public enum Bookmarks {
     /// resolved (the move-resilient negative — not an error). `stale` signals the
     /// bookmark resolved but should be regenerated with a fresh `save`.
     ///
+    /// The path comes back as the file system holds it (SPEC.md): byte for
+    /// byte the names on the volume, see `onDiskPath`.
+    ///
     /// Resolving never mounts a volume or shows UI: an engine call must not
     /// block on an unreachable server, and a file on a volume that is not
     /// mounted is not "found" by mounting it behind the caller's back. The
@@ -42,7 +46,21 @@ public enum Bookmarks {
                                  bookmarkDataIsStale: &stale) else {
             return nil
         }
-        return Resolved(path: url.path, stale: stale)
+        return Resolved(path: onDiskPath(url.path), stale: stale)
+    }
+
+    /// The path in the bytes the file system holds. Foundation hands a resolved
+    /// bookmark back with every name decomposed (NFD), whatever the volume
+    /// holds: measured on APFS, an NFC directory and an NFC file both came back
+    /// NFD. realpath(3) reads each name back off the volume and changes nothing
+    /// else, since the resolved path has its symlinks resolved already
+    /// (/var → /private/var both ways). It opens nothing, so a FIFO cannot block
+    /// it. When it fails — the file went away in between — the resolved path is
+    /// the best answer there is.
+    static func onDiskPath(_ path: String) -> String {
+        guard let real = realpath(path, nil) else { return path }
+        defer { free(real) }
+        return String(cString: real)
     }
 
     /// The path a blob recorded when it was saved, read from the bookmark
