@@ -2,12 +2,17 @@
 
 ![test](https://github.com/rhsev/fileanchor/actions/workflows/test.yml/badge.svg)
 
-fileanchor is a small native macOS metadata engine. It gives files a durable
-identity (bookmarks) and reads and writes Finder tags and Finder comments. The
-metadata travels over a batch protocol: one JSON object per line on stdin, one
-response per line on stdout. Everything runs through in-process Foundation /
-CoreServices calls, no fork+exec per file, so it is fast: 2,000 tag reads take
-about 50 ms. It runs on macOS 13 or later (tested on 15).
+fileanchor is a small metadata engine. It gives files a durable identity and
+reads and writes tags, comments and a few other attributes. The metadata
+travels over a batch protocol: one JSON object per line on stdin, one response
+per line on stdout. Each system has its own engine with its own code, a native
+macOS engine in Swift (`macos/`) and a Linux engine in Go (`linux/`). A
+consumer cannot tell them apart over the wire.
+
+The macOS engine works with bookmarks, Finder tags and Finder comments. It runs
+everything through in-process Foundation / CoreServices calls, no fork+exec per
+file, so it is fast: 2,000 tag reads take about 50 ms. It runs on macOS 13 or
+later (tested on 15).
 
 fileanchor helps metadata survive renaming and moving files. Using
 `xattr`/`plutil`/`mdfind` per file was both slow and subtly wrong. It started
@@ -21,16 +26,16 @@ resolver, a persistent-link scheme, or just a faster, batched, consolidated
 `bookmark` + `tag` + `xattr` + `mdfind`. fileregister is the first consumer,
 not the owner.
 
-> macOS only for now. The wire protocol is deliberately OS-neutral — no
-> `kMDItem*` names, no `#S`, no Spotlight syntax on the wire — so a Linux
-> implementation of the same contract (inode/hash resolution, `user.*` xattrs, a
-> locate index) can live in this repo later. Platform is an implementation
-> detail, not part of the name.
+The Linux engine stores the same values in `user.*` extended attributes and
+finds a moved file by its inode and generation number. Linux has no system
+index for these attributes, so the engine walks a set of folders, its roots,
+when an answer needs it. It needs kernel 6.6 or later and a file system with
+user extended attributes (ext4, btrfs, xfs).
 
 The specification lives in [SPEC.md](SPEC.md), which was written before and
 during the build. It also records the results of the metadata experiments.
-[PLATFORMS.md](PLATFORMS.md) records what an engine for another OS must share
-with this one.
+[PLATFORMS.md](PLATFORMS.md) records what both engines share and what each
+decides for itself.
 
 ## Protocol
 
@@ -57,7 +62,7 @@ smooth, not batching the wire.
 | `tags` | `path` | `{ok, tags:[…]}` — names only, color suffix stripped |
 | `set_meta` | `path`, `key`, `value`, `mode` | `{ok, action: added\|removed\|set\|noop}` |
 | `get_meta` | `path`, `key` | `{ok, value}` (sync/comment) or `{ok, values:[…]}` (groups/id) |
-| `query` | `by`, `value` | `{ok, paths:[…]}` — Spotlight lookup |
+| `query` | `by`, `value` | `{ok, paths:[…]}` — Spotlight on macOS, the walk over the roots on Linux |
 | `searchable` | `path` | `{ok, searchable}` — whether `query` would find a file there |
 
 - **`key`** ∈ `groups` \| `id` \| `sync` \| `comment`. `groups` is a real array
@@ -88,7 +93,8 @@ smooth, not batching the wire.
   the engine reads the names back from the volume instead.
 - **`searchable`** says whether `query` covers a place: on macOS, whether
   Spotlight indexes the volume the nearest existing ancestor of `path` lies on.
-  It is yes only for an enabled index. A consumer asks it before it reads an
+  It is yes only for an enabled index. On Linux it is yes only under a root the
+  engine walked completely. A consumer asks it before it reads an
   empty `query` as "no file carries this", and only about a volume it has found
   mounted.
 - **`last_path`** on a failed `resolve` is the path the blob recorded when it
@@ -130,6 +136,8 @@ Apple `kMDItem*` namespace does not.
 
 ## Build
 
+### macOS
+
 SwiftPM, arm64, macOS 13 or later (tested on macOS 15):
 
 ```
@@ -149,6 +157,31 @@ stored `_kMDItemUserTags` entries directly (via `PropertyListSerialization`),
 because an entry carries the tag's color (`name\n<index>`) and `tagNames` knows
 only names: writing through it would reset the color of every other tag on the
 file. Up to 1.0.2 that happened on every `tag`/`untag`.
+
+### Linux
+
+Go 1.26 or later; the binary runs on kernel 6.6 or later, amd64 or arm64:
+
+```
+go build -o fileanchor ./linux   # or: make linux for both release binaries
+./fileanchor --version
+go test ./linux/                 # unit checks
+python3 scripts/smoke.py ./fileanchor
+```
+
+The engine searches its roots. They are the lines of
+`~/.config/fileanchor/roots` (one path per line, `#` starts a comment, `~/`
+means the home folder), or `$HOME` when that file does not exist.
+`FILEANCHOR_ROOTS` overrides both with a colon-separated list; set but empty
+means no roots. The walk stays on each root's file system, follows no symlinks
+and skips dot directories except the Trash. It runs at most once per process
+and only when an answer needs it.
+
+Files carry their metadata only on a file system with user extended
+attributes. On FAT and exFAT every op that touches an attribute fails with the
+name of the file system. NTFS is not supported; an SMB mount works when the
+server keeps extended attributes. `cp` and `rsync` keep the attributes only with
+`--preserve=xattr` and `-X`.
 
 ### Vendoring
 

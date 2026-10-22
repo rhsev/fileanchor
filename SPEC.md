@@ -7,9 +7,9 @@ Finder tags, the `kMDItemProjects`/`kMDItemInformation` xattrs, a syncable
 cross-device id, and Spotlight queries — so a caller never pays fork+exec per file, and
 Finder tags / property lists are encoded correctly (no hand-rolled binary-plist).
 
-> **Platform.** macOS only for now. The protocol is OS-neutral, so a Linux
-> implementation of the *same contract* (inode/hash resolution, `user.*` xattrs,
-> a locate index) can live in this repo later — platform is an implementation
+> **Platform.** Two engines follow this specification: the macOS engine in Swift
+> (`macos/`), which this file describes, and the Linux engine in Go (`linux/`),
+> described in [PLATFORMS.md](PLATFORMS.md). Platform is an implementation
 > detail, not part of the name.
 
 **The engine knows nothing about any consumer's data model** — it operates only
@@ -38,7 +38,7 @@ rather than wrapping a wrapper.
   back and Get Info would otherwise stay blank), the cross-device `#S` id
   (its name is a parameter — see below), the ★ marker, a Spotlight query.
 - **OS-neutral protocol.** Linux is a *future second implementation of the same
-  contract* (inode/hash resolution instead of bookmarks, `user.*` xattrs,
+  specification* (inode/hash resolution instead of bookmarks, `user.*` xattrs,
   `plocate`/the consumer's index instead of Spotlight). No macOS assumptions leak
   into the wire shape.
 - **Not a daemon.** One process invocation handles a batch of operations, then
@@ -72,7 +72,7 @@ Established empirically (macOS 26.4) — full reference in fileregister's
    consumer manages (fileregister: "managed", written on first membership, removed
    on last). The engine just tags/untags it like any tag.
 
-## The contract (protocol)
+## The protocol
 
 Batch, line-oriented, **order-preserving**. One JSON object per input line on
 stdin; one JSON object per result line on stdout, in input order. A failed or
@@ -163,8 +163,12 @@ code are thin clients, and one engine process is held open for the run.)
 - `scripts/smoke.py` drives the **real binary** over the protocol and verifies
   the same facts, plus the wire format and compatibility with blobs from the
   `bookmark` CLI when it is on PATH. It also checks that `resolve` returns an NFC
-  and an NFD file name byte for byte as listed on disk. Run:
-  `python3 scripts/smoke.py [binary]`.
+  and an NFD file name byte for byte as listed on disk, and that a renamed or
+  moved file resolves with `stale`. Against the Linux engine it also checks
+  that engine's own choices: the `user.*` names, the roots, the walk, and that
+  a new file in a freed inode is not taken for the old one. Run:
+  `python3 scripts/smoke.py [binary]`. The Linux engine's unit checks run with
+  `go test ./linux/`.
 - Not covered: `query` against a live Spotlight index (temp dirs are not
   indexed); verified by hand.
 
