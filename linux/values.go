@@ -2,8 +2,8 @@
 
 package main
 
-// The value rules of the contract (PLATFORMS.md), as the macOS engine applies
-// them: strict on write, tolerant on read and removal, stored NFC.
+// The value rules of the specification (PLATFORMS.md), as the macOS engine
+// applies them: strict on write, tolerant on read and removal, stored NFC.
 
 import (
 	"strings"

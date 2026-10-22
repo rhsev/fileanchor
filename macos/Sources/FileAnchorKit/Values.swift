@@ -1,8 +1,8 @@
 import Foundation
 
-/// The value rules of the contract (PLATFORMS.md). Every fileanchor engine,
-/// whatever its OS, accepts exactly these values — so a value one engine
-/// wrote can be written again by any other, onto its own attributes.
+/// The value rules of the specification (PLATFORMS.md). Every fileanchor
+/// engine, whatever its OS, accepts exactly these values — so a value one
+/// engine wrote can be written again by any other, onto its own attributes.
 ///
 /// Strict on write, tolerant on read and removal: only `tag` and
 /// `set_meta add|set` validate. Removal takes whatever is there, so values

@@ -17,7 +17,7 @@ let package = Package(
     platforms: [.macOS(.v13)],
     products: [
         // The macOS engine binary. The wire protocol is OS-neutral; the Linux
-        // engine implements the same contract (SPEC.md, PLATFORMS.md).
+        // engine follows the same specification (SPEC.md, PLATFORMS.md).
         .executable(name: "fileanchor", targets: ["fileanchor"]),
         .library(name: "FileAnchorKit", targets: ["FileAnchorKit"]),
     ],

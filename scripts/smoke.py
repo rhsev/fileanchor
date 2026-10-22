@@ -2,12 +2,12 @@
 """Conformance test for a fileanchor engine, driving the real binary over the
 stdio protocol against the actual filesystem.
 
-Everything not marked macOS or Linux is the contract (SPEC.md, PLATFORMS.md):
-both engines must pass it unchanged. The macOS checks pin down where that
-engine stores things (_kMDItemUserTags, the #S name, the binary-plist comment,
-blobs from the `bookmark` CLI). The Linux checks cover what that engine decides
-for itself: its user.* names, the roots it walks, and file identity by inode
-and generation. Each set is skipped on the other system.
+Everything not marked macOS or Linux is the specification (SPEC.md,
+PLATFORMS.md): both engines must pass it unchanged. The macOS checks pin down
+where that engine stores things (_kMDItemUserTags, the #S name, the
+binary-plist comment, blobs from the `bookmark` CLI). The Linux checks cover
+what that engine decides for itself: its user.* names, the roots it walks, and
+file identity by inode and generation. Each set is skipped on the other system.
 
 Run: python3 scripts/smoke.py [path-to-binary]
 Runs every check, then exits non-zero if any failed.

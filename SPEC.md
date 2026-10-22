@@ -37,10 +37,10 @@ rather than wrapping a wrapper.
   itself via Apple Event, best effort, because Finder never reads that xattr
   back and Get Info would otherwise stay blank), the cross-device `#S` id
   (its name is a parameter — see below), the ★ marker, a Spotlight query.
-- **OS-neutral protocol.** Linux is a *future second implementation of the same
-  specification* (inode/hash resolution instead of bookmarks, `user.*` xattrs,
-  `plocate`/the consumer's index instead of Spotlight). No macOS assumptions leak
-  into the wire shape.
+- **OS-neutral protocol.** The Linux engine follows the same specification with
+  its own means: file system, inode, generation and creation time instead of a
+  bookmark, `user.*` xattrs, and a walk over its roots instead of Spotlight
+  (PLATFORMS.md). No macOS assumptions leak into the wire shape.
 - **Not a daemon.** One process invocation handles a batch of operations, then
   exits — but the process is held open by the caller for the duration of a run.
 

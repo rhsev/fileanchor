@@ -4,7 +4,7 @@ import Foundation
 // order. The shapes here are deliberately OS-neutral — no `kMDItem*` names, no
 // `#S`, no Spotlight syntax leak onto the wire. Operations name *intent*
 // (`save`, `tag`, `query by:tag`); the macOS mechanism lives behind them in the
-// engine, so a future Linux implementation can honor the same contract.
+// engine, so the Linux engine can follow the same specification.
 
 /// A single request line. Fields are op-specific; unknown fields are ignored,
 /// absent fields decode to nil and are validated per-op by the engine.

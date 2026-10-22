@@ -5,19 +5,19 @@ package main
 // save and resolve. Linux has no bookmark and, without root, no way from an
 // inode back to a path (open_by_handle_at needs CAP_DAC_READ_SEARCH, measured
 // on 6.8). So a blob records which file it was — file system, inode,
-// generation, birth time — and where it was; resolving looks for that file at
-// the recorded path, then in the old folder (a rename), then in the walk over
-// the roots (roots.go). Only when it is nowhere does a file now at the
-// recorded path count, as a macOS bookmark falls back to its path: an editor
-// that saves by writing a new file and renaming it over the old one leaves a
-// new inode in the old place, and that is still the file.
+// generation, creation time (btime) — and where it was; resolving looks for
+// that file at the recorded path, then in the old folder (a rename), then in
+// the walk over the roots (roots.go). Only when it is nowhere does a file now
+// at the recorded path count, as a macOS bookmark falls back to its path: an
+// editor that saves by writing a new file and renaming it over the old one
+// leaves a new inode in the old place, and that is still the file.
 //
 // The inode number alone is not enough: ext4 hands a freed inode to the next
-// new file at once, with the same birth time to the nanosecond (the kernel
+// new file at once, with the same creation time to the nanosecond (the kernel
 // stamps with a coarse clock). The generation number, which ext4, btrfs and
 // xfs bump on every reuse, tells the two apart, so a new file elsewhere that
 // got the old number is not taken for the old file. tmpfs has none; there the
-// birth time has to do.
+// creation time has to do.
 
 import (
 	"encoding/base64"
