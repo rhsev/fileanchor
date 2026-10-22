@@ -5,3 +5,4 @@ xcuserdata/
 *.xcodeproj
 .swiftpm/
 /fileanchor
+/fileanchor-linux-*

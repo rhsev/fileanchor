@@ -7,7 +7,7 @@ PREFIX ?= /usr/local
 # invisible. `build` bridges that to repo/<name>, the one path everything
 # else names.
 
-.PHONY: build install uninstall link unlink test clean
+.PHONY: build install uninstall link unlink test clean linux
 
 build:
 	swift build -c release
@@ -39,6 +39,16 @@ install: build
 uninstall:
 	rm -f $(PREFIX)/bin/$(BIN)
 
+# The Linux engine's release binaries, stamped with the tag the tree is on.
+# A release attaches both; fileregister fetches the one for its machine. No
+# -trimpath: with it Go leaves -ldflags out of the build info, and the stamp
+# could no longer be read on a Mac with `go version -m`.
+LINUX_VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+
+linux:
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=$(LINUX_VERSION)" -o $(BIN)-linux-amd64 ./linux
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=$(LINUX_VERSION)" -o $(BIN)-linux-arm64 ./linux
+
 clean:
-	rm -f $(BIN)
+	rm -f $(BIN) $(BIN)-linux-amd64 $(BIN)-linux-arm64
 	swift package clean

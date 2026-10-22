@@ -20,3 +20,17 @@ jobs:
       - run: swift build
       - run: swift run fileanchor-selftest
       - run: python3 scripts/smoke.py
+
+  linux:
+    # The Linux engine against the same conformance test. The runner's /tmp
+    # is ext4, which carries user.* attributes.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./linux/
+      - run: go test ./linux/
+      - run: go build -o fileanchor-linux ./linux
+      - run: python3 scripts/smoke.py ./fileanchor-linux
