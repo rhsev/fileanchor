@@ -153,6 +153,13 @@ as a root, resolves; while it is away its files are unreachable, not gone. An
 SMB mount from a Samba share passes smoke.py; NTFS passes all but the check
 for a reused file number.
 
+**Other tools' tags on Linux are rewritten NFC.** When the Linux engine adds or
+removes a tag, it writes the whole list back: every entry NFC, without blanks
+around the commas. The macOS engine keeps other entries byte for byte, because
+a Finder tag carries its color in the entry; `user.xdg.tags` holds nothing
+besides the names. Decided 2026-11-10: the text stays the same, and one form
+in the list keeps every comparison simple.
+
 ## Considered and dropped
 
 - **A strict default plus an open mode.** Every relaxation would be a value
