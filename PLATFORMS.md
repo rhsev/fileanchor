@@ -16,6 +16,9 @@ apart over the wire. So the specification is shared and the storage is not.
   a blank line included. A path that does not exist is `no such file`, never
   empty metadata. A blob that does not resolve comes back with `last_path`,
   the path it recorded, and resolving never mounts anything.
+  A value that is on the file in a form the engine cannot read is an error on
+  read and on write, never an empty value; an empty `set` still deletes it.
+  `save` follows a symlink to its target, as the metadata ops do.
 - **The semantics:** writes are idempotent (`noop` when nothing changes). An
   empty `set` deletes on every key. `remove`/`untag` take any value that is
   there. Reads come back NFC. Fields that do not apply are omitted, not `null`.
@@ -36,7 +39,7 @@ everywhere, and neither APFS xattrs nor Linux filesystems normalize.
 |---|---|---|
 | all | | not empty, no control characters, stored NFC |
 | label | `tag`, `groups` | no comma, no leading or trailing whitespace, ≤ 255 bytes |
-| token | `id`, `sync` | no whitespace, no comma, ≤ 128 bytes. `set` on `id` takes a space-separated list of tokens |
+| token | `id`, `sync` | no whitespace, no comma, ≤ 128 bytes. `set` on `id` takes a space-separated list of tokens and stores each once |
 | text | `comment` | newline and tab allowed, ≤ 1 KiB |
 
 Why each rule:
@@ -70,7 +73,7 @@ Where a value lives and how it is encoded is each engine's business.
 | `sync` | the name from `--sync-name`, literally (`com.fileregister.id#S`) | the same name under `user.`, without `#S` (`user.com.fileregister.id`) |
 | `save`/`resolve` | Foundation bookmark, base64; resolved without mounting, the path read back with realpath(3), because Foundation decomposes every name it resolves; `last_path` read from the bookmark data | base64 JSON with the file system (UUID, else `f_fsid`), inode, generation (else creation time) and the path as bytes. Looked up at the recorded path, then in its old folder, then by the walk over the roots, and when it is nowhere, whatever now has the recorded path; `stale` when it moved or was replaced, `last_path` when nothing is found |
 | `query` | synchronous Spotlight (`MDQuery`) | the walk over the roots, which reads the `user.*` attributes of every file it passes |
-| `searchable` | `mdutil -s` on the volume root, cached per volume; yes only for "Indexing enabled." | yes only under a root that is there, on the root's file system, outside skipped dot directories, with no unreadable directory on the way or below |
+| `searchable` | `mdutil -s` on the volume root, cached per volume; yes only for "Indexing enabled.", and no in a dot directory or below a folder named `*.noindex`, which Spotlight leaves out. The folders excluded in System Settings are not known to the engine | yes only under a root that is there, on the root's file system, outside skipped dot directories, with no unreadable directory on the way or below and no file below whose attributes could not be read |
 
 **`#S` stays on the wire.** `--sync-name com.fileregister.id#S` is what
 fileregister passes, and it passes it on every OS. `#S` is macOS's flag for an
