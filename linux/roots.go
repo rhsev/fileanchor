@@ -21,6 +21,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -50,7 +51,7 @@ type walkIndex struct {
 	byIno   map[uint64][]string
 	byName  map[string][]string // NFC basename → paths
 	attrs   map[string]fileAttrs
-	errDirs []string // directories the walk could not read
+	errDirs []string // directories the walk could not read, and files whose attributes it could not
 }
 
 // configuredRoots reads the roots as configured, before they are checked.
@@ -99,6 +100,7 @@ func loadRoots() []root {
 	var out []root
 	for _, p := range configuredRoots() {
 		if !filepath.IsAbs(p) {
+			fmt.Fprintf(os.Stderr, "fileanchor: root %q is not an absolute path and is ignored\n", p)
 			continue
 		}
 		r := root{path: filepath.Clean(p)}
@@ -238,8 +240,14 @@ func (idx *walkIndex) readAttrs(p string, buf []byte) []byte {
 		default:
 			continue
 		}
-		v, ok := lgetString(p, name)
-		if !ok {
+		v, err := lgetString(p, name)
+		if err != nil {
+			// The attribute is there and cannot be read (a file without
+			// read permission): what it holds is not in the index, so the
+			// place is not searched completely.
+			if err == unix.EACCES || err == unix.EPERM {
+				idx.errDirs = append(idx.errDirs, p)
+			}
 			continue
 		}
 		found = true
@@ -258,7 +266,7 @@ func (idx *walkIndex) readAttrs(p string, buf []byte) []byte {
 	return buf
 }
 
-func lgetString(p, name string) (string, bool) {
+func lgetString(p, name string) (string, error) {
 	buf := make([]byte, 256)
 	for {
 		n, err := unix.Lgetxattr(p, name, buf)
@@ -267,9 +275,9 @@ func lgetString(p, name string) (string, bool) {
 			continue
 		}
 		if err != nil {
-			return "", false
+			return "", err
 		}
-		return string(buf[:n]), true
+		return string(buf[:n]), nil
 	}
 }
 

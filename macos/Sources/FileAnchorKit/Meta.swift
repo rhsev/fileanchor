@@ -58,11 +58,37 @@ public struct Meta {
         }
     }
 
-    private func arrayItems(_ xattr: String, path: String) -> [String] {
-        guard let data = Xattr.getData(xattr, path: path), !data.isEmpty,
-              let obj = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil),
-              let arr = obj as? [String] else { return [] }
-        return arr
+    // A value that is there but in no form known here is an error, not an
+    // empty list: taken for empty, the next write would replace it. A single
+    // string, as a property list or as plain text, is a list of one, which
+    // is how another tool or `xattr -w` leaves a project name.
+    private func arrayItems(_ xattr: String, path: String) throws -> [String] {
+        guard let data = Xattr.getData(xattr, path: path), !data.isEmpty else { return [] }
+        if let obj = Self.propertyList(data) {
+            if let arr = obj as? [String] { return arr.map(\.precomposedStringWithCanonicalMapping) }
+            if let one = obj as? String { return [one.precomposedStringWithCanonicalMapping] }
+        } else if let text = Self.plainText(data) {
+            return [text.precomposedStringWithCanonicalMapping]
+        }
+        throw EngineError.unreadable(xattr)
+    }
+
+    /// The property list in an attribute, or nil. Bytes that start like a
+    /// binary property list and fail to parse as one are damaged: the
+    /// old-style parser would still read them, as one odd string.
+    static func propertyList(_ data: Data) -> Any? {
+        var format = PropertyListSerialization.PropertyListFormat.binary
+        guard let obj = try? PropertyListSerialization.propertyList(from: data, options: [], format: &format)
+        else { return nil }
+        if data.starts(with: Array("bplist".utf8)), format != .binary { return nil }
+        return obj
+    }
+
+    /// Raw attribute bytes as text, when they are text: valid UTF-8 and no
+    /// binary property list that failed to parse.
+    static func plainText(_ data: Data) -> String? {
+        guard !data.starts(with: Array("bplist".utf8)) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     @discardableResult
@@ -83,15 +109,32 @@ public struct Meta {
     // with two ids could not be found by either (verified, macOS 15.8 and
     // 27.2). A single raw token parses as an old-style plist string, so ids
     // written raw before still read — exactly as Spotlight reads them.
-    private func tokens(_ xattr: String, path: String) -> [String] {
-        Self.idString(xattr, path: path).map(Self.tokenize) ?? []
+    //
+    // Two raw tokens ("id1 id2") are no property list at all. They are read
+    // as the plain text they are, so the next write keeps both and stores
+    // them the way Spotlight reads.
+    private func tokens(_ xattr: String, path: String) throws -> [String] {
+        guard let data = Xattr.getData(xattr, path: path), !data.isEmpty else { return [] }
+        guard let string = Self.idString(data) else { throw EngineError.unreadable(xattr) }
+        return Self.tokenize(string)
     }
 
     static func idString(_ xattr: String, path: String) -> String? {
-        guard let data = Xattr.getData(xattr, path: path), !data.isEmpty,
-              let string = try? PropertyListSerialization.propertyList(from: data, format: nil) as? String
-        else { return nil }
-        return string
+        guard let data = Xattr.getData(xattr, path: path), !data.isEmpty else { return nil }
+        return idString(data)
+    }
+
+    private static func idString(_ data: Data) -> String? {
+        if let obj = propertyList(data) {
+            return obj as? String
+        }
+        return plainText(data)
+    }
+
+    /// The tokens once each, in their order.
+    static func unique(_ tokens: [String]) -> [String] {
+        var seen = Set<String>()
+        return tokens.filter { seen.insert($0).inserted }
     }
 
     private func writeTokens(_ tokens: [String], _ xattr: String, path: String) -> Bool {
@@ -153,9 +196,9 @@ public struct Meta {
         if r.plist {
             resp.value = readPlistString(r.xattr, path: path).flatMap { $0.isEmpty ? nil : $0 }
         } else if r.array {
-            resp.values = arrayItems(r.xattr, path: path)
+            resp.values = try arrayItems(r.xattr, path: path)
         } else if r.multi {
-            resp.values = tokens(r.xattr, path: path)
+            resp.values = try tokens(r.xattr, path: path)
         } else {
             resp.value = Xattr.get(r.xattr, path: path).flatMap { $0.isEmpty ? nil : $0 }
         }
@@ -177,8 +220,8 @@ public struct Meta {
         var value = value
         if mode == "add" || mode == "set", !value.isEmpty {
             if r.kind == .token && r.multi && mode == "set" {
-                value = try Self.tokenize(value)
-                    .map { try Values.validate($0, as: .token, key: key) }
+                value = Self.unique(try Self.tokenize(value)
+                    .map { try Values.validate($0, as: .token, key: key) })
                     .joined(separator: " ")
             } else {
                 value = try Values.validate(value, as: r.kind, key: key)
@@ -192,8 +235,11 @@ public struct Meta {
             // restore over an intact xattr).
             FinderComment.sync(path: path, comment: mode == "remove" ? "" : value)
             return action
+        } else if (r.array || r.multi), mode == "set", value.isEmpty {
+            // An empty set deletes whatever is there, readable or not.
+            return try clear(r.xattr, path: path)
         } else if r.array {
-            var current = arrayItems(r.xattr, path: path)
+            var current = try arrayItems(r.xattr, path: path)
             switch mode {
             case "add":
                 guard !current.contains(value) else { return "noop" }
@@ -218,7 +264,7 @@ public struct Meta {
                 throw EngineError.invalidMode(mode)
             }
         } else if r.multi {
-            var current = tokens(r.xattr, path: path)
+            var current = try tokens(r.xattr, path: path)
             // No stored token holds whitespace, so removing one that does is a
             // caller error, not a noop.
             if mode == "remove", value.contains(where: \.isWhitespace) {

@@ -13,6 +13,9 @@ public enum Tags {
     /// read back byte-different from the same text precomposed. Swift compares
     /// strings canonically, so add/remove match either form regardless.
     public static func get(path: String) throws -> [String] {
+        // tagNames answers "no tags" for an attribute it cannot read. That
+        // is not the same thing, so the stored form is checked first.
+        _ = try storedEntries(path: path)
         let url = URL(fileURLWithPath: path)
         let values = try url.resourceValues(forKeys: [.tagNamesKey])
         return values.tagNames?.map(\.precomposedStringWithCanonicalMapping) ?? []
@@ -22,7 +25,7 @@ public enum Tags {
     /// must pass the label rule (Values); removal takes any tag.
     public static func add(path: String, value: String) throws -> String {
         let value = try Values.validate(value, as: .label, key: "tag")
-        let entries = storedEntries(path: path)
+        let entries = try storedEntries(path: path)
         guard !entries.contains(where: { name(of: $0) == value }) else { return "noop" }
         try write(path: path, entries: entries + [value])
         return "added"
@@ -30,7 +33,7 @@ public enum Tags {
 
     /// Remove a tag if present. Returns "removed" or "noop". Idempotent.
     public static func remove(path: String, value: String) throws -> String {
-        let entries = storedEntries(path: path)
+        let entries = try storedEntries(path: path)
         guard entries.contains(where: { name(of: $0) == value }) else { return "noop" }
         try write(path: path, entries: entries.filter { name(of: $0) != value })
         return "removed"
@@ -45,10 +48,13 @@ public enum Tags {
     // macOS 26 setter resets them all to 0, verified on macOS 27). Existing
     // entries are kept byte for byte; a new tag goes in as a bare name, which
     // Finder shows and Spotlight indexes (verified since 1.0.0).
-    private static func storedEntries(path: String) -> [String] {
-        guard let data = Xattr.getData(storageKey, path: path), !data.isEmpty,
-              let list = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String]
-        else { return [] }
+    //
+    // An attribute that is there but is no list of strings is an error, not
+    // "no tags": taken for empty, the next write would replace what it holds.
+    private static func storedEntries(path: String) throws -> [String] {
+        guard let data = Xattr.getData(storageKey, path: path), !data.isEmpty else { return [] }
+        guard let list = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String]
+        else { throw EngineError.unreadable(storageKey) }
         return list
     }
 

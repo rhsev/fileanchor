@@ -18,11 +18,28 @@ final class SpotlightCoverage {
     private var byVolume: [String: Bool] = [:]
 
     func searchable(path: String) -> Bool {
+        guard !Self.skipped(path: path) else { return false }
         guard let volume = Self.volumeRoot(of: path) else { return false }
         if let known = byVolume[volume] { return known }
         let answer = Self.indexed(volume: volume)
         byVolume[volume] = answer
         return answer
+    }
+
+    /// Whether `path` lies in a folder Spotlight leaves out on an indexed
+    /// volume: a dot directory, or one whose name ends in `.noindex`. A file
+    /// there is never found by `query`, so a miss says nothing. The last name
+    /// counts only when the place asked about is itself a directory.
+    ///
+    /// Not covered: the folders excluded in System Settings (the list is not
+    /// readable without root), and the parts of ~/Library Spotlight skips.
+    static func skipped(path: String) -> Bool {
+        var names = URL(fileURLWithPath: path).standardizedFileURL.pathComponents.filter { $0 != "/" }
+        var isDir: ObjCBool = false
+        if !(FileManager.default.fileExists(atPath: path, isDirectory: &isDir) && isDir.boolValue) {
+            names = Array(names.dropLast())
+        }
+        return names.contains { $0.hasPrefix(".") || $0.hasSuffix(".noindex") }
     }
 
     /// The root of the volume the nearest existing ancestor of `path` lies on.

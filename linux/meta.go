@@ -232,7 +232,7 @@ func (e *engine) setMeta(path, key, value string, mode *string, requestName *str
 				}
 				toks = append(toks, v)
 			}
-			value = strings.Join(toks, " ")
+			value = strings.Join(unique(toks), " ")
 		} else {
 			if value, err = validate(value, k.kind, key); err != nil {
 				return "", err
@@ -315,6 +315,19 @@ func (e *engine) setMeta(path, key, value string, mode *string, requestName *str
 		}
 		return "", invalidMode(m)
 	}
+}
+
+// unique keeps each token once, in its order.
+func unique(tokens []string) []string {
+	seen := map[string]bool{}
+	out := tokens[:0:0]
+	for _, t := range tokens {
+		if !seen[t] {
+			seen[t] = true
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 func equalLists(a, b []string) bool {

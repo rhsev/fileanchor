@@ -13,8 +13,13 @@ import Darwin
 /// `save(path) → blob` and `resolve(blob) → path`. The consumer keeps the map.
 public enum Bookmarks {
     /// Create a bookmark blob for `path`. Throws if the file cannot be read.
+    ///
+    /// A symlink is followed to its target first, as every metadata op
+    /// follows it: a bookmark made of the link itself would name the link
+    /// while tags and ids sit on the target, and would go on resolving, to
+    /// the link, after the target is gone.
     public static func save(path: String) throws -> String {
-        let url = URL(fileURLWithPath: path)
+        let url = URL(fileURLWithPath: onDiskPath(path))
         let data = try url.bookmarkData(options: [],
                                         includingResourceValuesForKeys: nil,
                                         relativeTo: nil)

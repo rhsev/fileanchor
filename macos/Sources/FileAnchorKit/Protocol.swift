@@ -60,6 +60,7 @@ public enum EngineError: Error, CustomStringConvertible {
     case syncNameNotConfigured
     case writeFailed(String)
     case noSuchFile(String)
+    case unreadable(String)
 
     public var description: String {
         switch self {
@@ -73,6 +74,7 @@ public enum EngineError: Error, CustomStringConvertible {
             return "sync key used but no sync name set (pass --sync-name or a per-request \"name\")"
         case .writeFailed(let what):  return "write failed: \(what)"
         case .noSuchFile(let path):   return "no such file: \(path)"
+        case .unreadable(let what):   return "cannot read \(what): it is not in a form this engine knows"
         }
     }
 }

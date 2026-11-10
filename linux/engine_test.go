@@ -134,3 +134,47 @@ func TestUnreadableDirectoryWithholdsSearchable(t *testing.T) {
 		t.Error("a readable sibling is not searchable")
 	}
 }
+
+func TestUnreadableFileWithholdsSearchable(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads every file")
+	}
+	dir := t.TempDir()
+	os.Mkdir(filepath.Join(dir, "a"), 0o755)
+	os.Mkdir(filepath.Join(dir, "b"), 0o755)
+	locked := filepath.Join(dir, "a", "locked.txt")
+	os.WriteFile(locked, []byte("x"), 0o644)
+	t.Setenv("FILEANCHOR_ROOTS", dir)
+	if _, err := newEngine("").setMeta(locked, "id", "123", nil, nil); err != nil {
+		t.Skipf("no user attributes here: %v", err)
+	}
+	os.Chmod(locked, 0o000)
+	defer os.Chmod(locked, 0o644)
+
+	e := newEngine("")
+	if got := e.query("id", "123"); len(got) != 0 {
+		t.Skipf("the attribute of an unreadable file was read here: %v", got)
+	}
+	if e.searchable(locked) {
+		t.Error("a file whose attributes the walk could not read is searchable")
+	}
+	if e.searchable(filepath.Join(dir, "a")) {
+		t.Error("a folder with such a file below is searchable")
+	}
+	if !e.searchable(filepath.Join(dir, "b", "gone.txt")) {
+		t.Error("a sibling folder is not searchable")
+	}
+}
+
+func TestSetIDKeepsEachTokenOnce(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "f.txt")
+	os.WriteFile(f, []byte("x"), 0o644)
+	e := newEngine("")
+	mode := "set"
+	if _, err := e.setMeta(f, "id", "a a b a", &mode, nil); err != nil {
+		t.Skipf("no user attributes here: %v", err)
+	}
+	if got, _ := readTokens(f, idAttr); strings.Join(got, " ") != "a b" {
+		t.Errorf("id tokens = %v, want a b", got)
+	}
+}

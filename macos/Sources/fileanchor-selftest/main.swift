@@ -399,6 +399,105 @@ for line in [#"{"op":"get_meta","path":"\#(missing)","key":"groups"}"#,
           out.contains("\"ok\":false") && out.contains("no such file"))
 }
 
+// MARK: - Values in another form
+
+section("Values in another form")
+
+/// One request over the wire, as a consumer sends it.
+func wire(_ fields: [String: String]) -> String {
+    let data = try! JSONSerialization.data(withJSONObject: fields)
+    return engine().handle(line: String(data: data, encoding: .utf8)!)
+}
+
+// Two ids as plain text, the form before ids were stored as a property list.
+// Read as empty, the next add replaced both.
+let rawIDs = freshFile()
+Xattr.set("com.apple.metadata:kMDItemInformation", value: "111111111 222222222", path: rawIDs)
+check("two raw ids are read",
+      wire(["op": "get_meta", "path": rawIDs, "key": "id"]).contains(#"["111111111","222222222"]"#))
+check("adding a third keeps them",
+      wire(["op": "set_meta", "path": rawIDs, "key": "id", "value": "333333333", "mode": "add"]).contains("added")
+      && wire(["op": "get_meta", "path": rawIDs, "key": "id"]).contains(#"["111111111","222222222","333333333"]"#))
+check("query by id still filters by whole token on raw ids",
+      Query.keepingWholeToken("222222222", in: [rawIDs]) == [rawIDs])
+
+// kMDItemProjects as one string, as `xattr -w` or another tool leaves it.
+let plainGroup = freshFile()
+Xattr.set("com.apple.metadata:kMDItemProjects", value: "Projekt A", path: plainGroup)
+check("a group stored as plain text is read as a list of one",
+      wire(["op": "get_meta", "path": plainGroup, "key": "groups"]).contains(#"["Projekt A"]"#))
+check("adding a group keeps it",
+      wire(["op": "set_meta", "path": plainGroup, "key": "groups", "value": "B", "mode": "add"]).contains("added")
+      && wire(["op": "get_meta", "path": plainGroup, "key": "groups"]).contains(#"["Projekt A","B"]"#))
+
+// An attribute that is there and cannot be read is an error on every op but
+// the delete. Taken for empty, the next write replaced it.
+let broken = Data("bplist00".utf8)
+let brokenTags = freshFile()
+Xattr.setData("com.apple.metadata:_kMDItemUserTags", data: broken, path: brokenTags)
+for op in [["op": "tags"], ["op": "tag", "value": "Neu"], ["op": "untag", "value": "Neu"]] {
+    var fields = op
+    fields["path"] = brokenTags
+    let out = wire(fields)
+    check("unreadable tags are an error for \(op["op"]!)", out.contains("\"ok\":false") && out.contains("cannot read"))
+}
+check("unreadable tags stay as they were", Xattr.getData("com.apple.metadata:_kMDItemUserTags", path: brokenTags) == broken)
+
+let brokenGroups = freshFile()
+Xattr.setData("com.apple.metadata:kMDItemProjects", data: broken, path: brokenGroups)
+check("unreadable groups are an error on read",
+      wire(["op": "get_meta", "path": brokenGroups, "key": "groups"]).contains("cannot read"))
+check("unreadable groups are an error on add",
+      wire(["op": "set_meta", "path": brokenGroups, "key": "groups", "value": "B", "mode": "add"]).contains("cannot read")
+      && Xattr.getData("com.apple.metadata:kMDItemProjects", path: brokenGroups) == broken)
+check("an empty set still deletes them",
+      wire(["op": "set_meta", "path": brokenGroups, "key": "groups", "value": "", "mode": "set"]).contains("removed")
+      && Xattr.getData("com.apple.metadata:kMDItemProjects", path: brokenGroups) == nil)
+
+check("set on id keeps each token once",
+      wire(["op": "set_meta", "path": rawIDs, "key": "id", "value": "a a b a", "mode": "set"]).contains("\"ok\":true")
+      && wire(["op": "get_meta", "path": rawIDs, "key": "id"]).contains(#"["a","b"]"#))
+
+// MARK: - Symlinks
+
+section("Symlinks")
+
+// A bookmark saved through a symlink is the target's, like the tags and ids
+// written through it. It used to be the link's, and went on resolving, to
+// the link, after the target was gone.
+func real(_ path: String) -> String { URL(fileURLWithPath: path).resolvingSymlinksInPath().path }
+let target = freshFile()
+let link = URL(fileURLWithPath: target).deletingLastPathComponent().appendingPathComponent("link.txt").path
+try? FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: target)
+let linkBlob = (try? Bookmarks.save(path: link)) ?? ""
+check("a bookmark saved through a symlink resolves to the target",
+      Bookmarks.resolve(blob: linkBlob).map { real($0.path) } == real(target))
+let movedTarget = URL(fileURLWithPath: target).deletingLastPathComponent().appendingPathComponent("moved.txt").path
+try? FileManager.default.moveItem(atPath: target, toPath: movedTarget)
+check("it follows the target when that moves",
+      Bookmarks.resolve(blob: linkBlob).map { real($0.path) } == real(movedTarget))
+try? FileManager.default.removeItem(atPath: movedTarget)
+check("it does not resolve once the target is gone", Bookmarks.resolve(blob: linkBlob) == nil)
+
+// MARK: - Places Spotlight leaves out
+
+section("Places Spotlight leaves out")
+
+let visible = freshFile()
+let base = URL(fileURLWithPath: visible).deletingLastPathComponent()
+let dotDir = base.appendingPathComponent(".hidden")
+let noIndex = base.appendingPathComponent("cache.noindex")
+try? FileManager.default.createDirectory(at: dotDir, withIntermediateDirectories: true)
+try? FileManager.default.createDirectory(at: noIndex, withIntermediateDirectories: true)
+let whole = wire(["op": "searchable", "path": visible])
+for (label, path) in [("a file in a dot directory", dotDir.appendingPathComponent("gone.pdf").path),
+                      ("a dot directory itself", dotDir.path),
+                      ("a file below a .noindex folder", noIndex.appendingPathComponent("sub/gone.pdf").path)] {
+    check("\(label) is not searchable", wire(["op": "searchable", "path": path]).contains("\"searchable\":false"))
+}
+check("a dot file in an ordinary folder is judged like its folder",
+      wire(["op": "searchable", "path": base.appendingPathComponent(".hidden.txt").path]) == whole)
+
 // MARK: - Verdict
 
 for dir in scratchDirs { try? FileManager.default.removeItem(at: dir) }
