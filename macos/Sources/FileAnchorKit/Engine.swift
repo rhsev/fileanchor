@@ -59,6 +59,7 @@ public struct Engine {
             var r = Response(ok: true)
             r.path = resolved.path
             if resolved.stale { r.stale = true }
+            r.atOldPath = resolved.atOldPath
             return r
 
         case "tag":

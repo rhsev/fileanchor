@@ -35,10 +35,12 @@ public struct Response: Encodable {
     public var stale: Bool?         // resolve: blob is stale, caller should re-save
     public var lastPath: String?    // resolve, when unresolvable: the path the blob recorded
     public var searchable: Bool?    // searchable: would query find a file under the path
+    public var atOldPath: String?   // resolve: another file lies where the blob was saved
 
     enum CodingKeys: String, CodingKey {
         case ok, error, blob, path, action, tags, value, values, paths, stale, searchable
         case lastPath = "last_path"
+        case atOldPath = "at_old_path"
     }
 
     public init(ok: Bool) { self.ok = ok }

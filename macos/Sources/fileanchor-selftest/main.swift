@@ -57,6 +57,8 @@ func freshFile() -> String {
 
 func engine() -> Engine { Engine(syncName: syncName) }
 
+func real2(_ path: String) -> String { URL(fileURLWithPath: path).resolvingSymlinksInPath().path }
+
 // MARK: - Bookmarks
 
 section("Bookmarks")
@@ -87,6 +89,27 @@ check("a deleted file does not resolve", Bookmarks.resolve(blob: movedBlob) == n
 check("but its blob still names the path it recorded",
       Bookmarks.recordedPath(blob: movedBlob).map { URL(fileURLWithPath: $0).lastPathComponent } == "sample.txt")
 check("a malformed blob is a negative too", Bookmarks.resolve(blob: "not-base64-!!!") == nil)
+
+// The file comes before the path: when the bookmarked file was moved and
+// another file took its name, resolve answers with the bookmarked one and
+// names the newcomer.
+let displaced = freshFile()
+let displacedBlob = (try? Bookmarks.save(path: displaced)) ?? ""
+check("bookmark data gives out the inode number",
+      Bookmarks.recordedFileID(data: Data(base64Encoded: displacedBlob) ?? Data())
+          == (try? FileManager.default.attributesOfItem(atPath: displaced)[.systemFileNumber] as? UInt64))
+let displacedTo = URL(fileURLWithPath: displaced).deletingLastPathComponent().appendingPathComponent("displaced.txt").path
+try? FileManager.default.moveItem(atPath: displaced, toPath: displacedTo)
+try? "newcomer".write(toFile: displaced, atomically: false, encoding: .utf8)
+let displacedNow = Bookmarks.resolve(blob: displacedBlob)
+check("a moved file resolves to its new place although another file took its name",
+      displacedNow.map { real2($0.path) } == real2(displacedTo))
+check("the newcomer is named, and the bookmark is stale",
+      displacedNow?.atOldPath.map(real2) == real2(displaced) && displacedNow?.stale == true)
+try? FileManager.default.removeItem(atPath: displacedTo)
+check("with the bookmarked file gone, the file at the recorded path is the answer",
+      Bookmarks.resolve(blob: displacedBlob).map { real2($0.path) } == real2(displaced)
+          && Bookmarks.resolve(blob: displacedBlob)?.atOldPath == nil)
 
 // MARK: - Tags, including the ★ marker and an umlaut
 

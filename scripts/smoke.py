@@ -149,6 +149,22 @@ os.rename(saved + ".tmp", saved)
 resp = run_batch([{"op": "resolve", "blob": sblob}])
 check(resp[0].get("ok") and resp[0].get("path") == saved and resp[0].get("stale") is True,
       "a file saved over by rename resolves at its path, stale")
+# The file comes before the path: a moved file whose name another file took.
+orig = os.path.join(tmp, "taken.txt")
+with open(orig, "w") as fh: fh.write("original")
+tblob = run_batch([{"op": "save", "path": orig}])[0].get("blob", "")
+os.makedirs(os.path.join(tmp, "elsewhere"))
+gone_to = os.path.join(tmp, "elsewhere", "taken-moved.txt")
+os.rename(orig, gone_to)
+with open(orig, "w") as fh: fh.write("newcomer")
+resp = run_batch([{"op": "resolve", "blob": tblob}])
+check(resp[0].get("ok") and resp[0].get("path") == gone_to and resp[0].get("stale") is True,
+      "moved, and another file took its name → the moved file, stale")
+check(resp[0].get("at_old_path") == orig, "the file in its old place is named in at_old_path")
+os.remove(orig)
+resp = run_batch([{"op": "resolve", "blob": tblob}])
+check(resp[0].get("path") == gone_to and "at_old_path" not in resp[0],
+      "without a file in the old place there is no at_old_path")
 
 print("\n# macOS: a blob from ttscoff's `bookmark` CLI is resolvable (migration-safe)")
 legacy = os.environ.get("BOOKMARK") or shutil.which("bookmark")

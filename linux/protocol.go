@@ -28,6 +28,7 @@ type request struct {
 // keep an empty list ([]) apart from an absent one.
 type response struct {
 	Action     string    `json:"action,omitempty"`
+	AtOldPath  string    `json:"at_old_path,omitempty"`
 	Blob       string    `json:"blob,omitempty"`
 	Error      string    `json:"error,omitempty"`
 	LastPath   string    `json:"last_path,omitempty"`

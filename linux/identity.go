@@ -181,6 +181,9 @@ func decodeBlob(s string) (blob, bool) {
 type resolved struct {
 	path  string
 	stale bool
+	// atOldPath is another file that lies at the recorded path, when the
+	// bookmarked file was found elsewhere.
+	atOldPath string
 }
 
 // resolve finds the file a blob recorded. Nothing is mounted on the way.
@@ -213,7 +216,7 @@ func (e *engine) locate(b blob) (resolved, bool) {
 			p := filepath.Join(dir, ent.Name())
 			if info, err := ent.Info(); err == nil && inodeOf(info) == b.Ino {
 				if id, err := identify(p); err == nil && id.same(b.identity) {
-					return resolved{path: p, stale: true}, true
+					return resolved{path: p, stale: true, atOldPath: occupant(last)}, true
 				}
 			}
 		}
@@ -221,7 +224,7 @@ func (e *engine) locate(b blob) (resolved, bool) {
 	// Anywhere under the roots.
 	for _, p := range e.walk().byIno[b.Ino] {
 		if id, err := identify(p); err == nil && id.same(b.identity) {
-			return resolved{path: p, stale: true}, true
+			return resolved{path: p, stale: true, atOldPath: occupant(last)}, true
 		}
 	}
 	// Nowhere: whatever now has the recorded path.
@@ -229,4 +232,17 @@ func (e *engine) locate(b blob) (resolved, bool) {
 		return resolved{path: last, stale: true}, true
 	}
 	return resolved{}, false
+}
+
+// occupant returns last when a file or folder lies there, else "". It is
+// called once the bookmarked file was found elsewhere, so whatever has the
+// recorded path is another file (SPEC.md, "The file comes before the path").
+func occupant(last string) string {
+	if !utf8.ValidString(last) {
+		return "" // JSON cannot carry the name's bytes
+	}
+	if info, err := os.Lstat(last); err == nil && (info.Mode().IsRegular() || info.IsDir()) {
+		return last
+	}
+	return ""
 }

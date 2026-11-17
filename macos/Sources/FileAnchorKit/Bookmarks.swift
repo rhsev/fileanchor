@@ -29,6 +29,9 @@ public enum Bookmarks {
     public struct Resolved {
         public let path: String
         public let stale: Bool
+        /// Another file that lies where the bookmark was saved, while the
+        /// bookmarked file itself was found elsewhere. nil in every other case.
+        public let atOldPath: String?
     }
 
     /// Resolve a blob to a path. Returns nil when the blob is empty or cannot be
@@ -51,7 +54,55 @@ public enum Bookmarks {
                                  bookmarkDataIsStale: &stale) else {
             return nil
         }
-        return Resolved(path: onDiskPath(url.path), stale: stale)
+        let path = onDiskPath(url.path)
+        // Foundation looks at the recorded path first and takes whatever lies
+        // there. When that is another file and the bookmarked one still
+        // exists, the bookmarked one is the answer (SPEC.md, "The file comes
+        // before the path").
+        if let original = movedOriginal(data: data, resolved: path) {
+            return Resolved(path: original, stale: true, atOldPath: path)
+        }
+        return Resolved(path: path, stale: stale, atOldPath: nil)
+    }
+
+    /// The key under which bookmark data gives out the file's inode number.
+    /// Foundation has no public name for it. When it stops answering, resolve
+    /// falls back to what Foundation resolved, and the selftest fails.
+    static let recordedFileIDKey = URLResourceKey("_NSURLFileIDKey")
+
+    /// The inode number a blob recorded, or nil.
+    public static func recordedFileID(data: Data) -> UInt64? {
+        guard let values = URL.resourceValues(forKeys: [recordedFileIDKey], fromBookmarkData: data),
+              let number = values.allValues[recordedFileIDKey] as? NSNumber
+        else { return nil }
+        return number.uint64Value
+    }
+
+    /// Where the bookmarked file is now, when `resolved` is a different file
+    /// that lies at the recorded path. nil when `resolved` is the bookmarked
+    /// file, or when that file is gone.
+    ///
+    /// The file is looked up by its inode number on the volume `resolved` lies
+    /// on, with fsgetpath(2), which opens nothing. A file system that reuses
+    /// inode numbers could hand back a newer file under the old number, so the
+    /// creation date the bookmark recorded has to match as well.
+    static func movedOriginal(data: Data, resolved: String) -> String? {
+        guard let fileID = recordedFileID(data: data) else { return nil }
+        var st = stat()
+        guard stat(resolved, &st) == 0, UInt64(st.st_ino) != fileID else { return nil }
+        var fs = statfs()
+        guard statfs(resolved, &fs) == 0 else { return nil }
+        var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
+        guard fsgetpath(&buffer, buffer.count, &fs.f_fsid, fileID) > 0 else { return nil }
+        let original = onDiskPath(String(cString: buffer))
+        var found = stat()
+        guard original != resolved, stat(original, &found) == 0,
+              UInt64(found.st_ino) == fileID else { return nil }
+        if let created = URL.resourceValues(forKeys: [.creationDateKey], fromBookmarkData: data)?.creationDate {
+            let birth = Double(found.st_birthtimespec.tv_sec) + Double(found.st_birthtimespec.tv_nsec) / 1e9
+            guard abs(birth - created.timeIntervalSince1970) < 1 else { return nil }
+        }
+        return original
     }
 
     /// The path in the bytes the file system holds. Foundation hands a resolved

@@ -63,7 +63,7 @@ func (e *engine) dispatch(req request) (response, error) {
 			r.LastPath = last
 			return r, nil
 		}
-		return response{OK: true, Path: res.path, Stale: res.stale}, nil
+		return response{OK: true, Path: res.path, Stale: res.stale, AtOldPath: res.atOldPath}, nil
 
 	case "tag", "untag":
 		path, err := requireFile(req.Path)
