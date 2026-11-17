@@ -57,7 +57,7 @@ smooth, not batching the wire.
 | op | input fields | output |
 |---|---|---|
 | `save` | `path` | `{ok, blob}` — opaque base64 bookmark |
-| `resolve` | `blob` | `{ok, path[, stale]}`; unresolvable → `{ok:false, last_path}` |
+| `resolve` | `blob` | `{ok, path[, stale][, at_old_path]}`; unresolvable → `{ok:false, last_path}` |
 | `tag` / `untag` | `path`, `value` | `{ok, action: added\|removed\|noop}` |
 | `tags` | `path` | `{ok, tags:[…]}` — names only, color suffix stripped |
 | `set_meta` | `path`, `key`, `value`, `mode` | `{ok, action: added\|removed\|set\|noop}` |
@@ -102,6 +102,10 @@ smooth, not batching the wire.
   mounted. Resolving never mounts a volume or shows UI.
 - **`stale`** on `resolve` means the bookmark resolved but should be regenerated
   with a fresh `save`.
+- **`at_old_path`** on `resolve` names another file that lies where the blob
+  was saved, while the saved file itself was found elsewhere and is the `path`.
+  The file was moved and its name taken, or a program saved a new file there
+  and kept the old one under another name.
 
 Batch resolve needs no separate op — one object per line *is* the batch, and an
 empty blob in yields a negative out, in order.

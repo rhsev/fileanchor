@@ -71,7 +71,7 @@ Where a value lives and how it is encoded is each engine's business.
 | `groups` | `com.apple.metadata:kMDItemProjects`, binary-plist array | `user.fileanchor.groups`, comma-separated |
 | `id` | `com.apple.metadata:kMDItemInformation`, space-separated, as a binary-plist string (Spotlight indexes nothing else once there are two ids) | `user.fileanchor.id`, space-separated |
 | `sync` | the name from `--sync-name`, literally (`com.fileregister.id#S`) | the same name under `user.`, without `#S` (`user.com.fileregister.id`) |
-| `save`/`resolve` | Foundation bookmark, base64; resolved without mounting, the path read back with realpath(3), because Foundation decomposes every name it resolves; `last_path` read from the bookmark data | base64 JSON with the file system (UUID, else `f_fsid`), inode, generation (else creation time) and the path as bytes. Looked up at the recorded path, then in its old folder, then by the walk over the roots, and when it is nowhere, whatever now has the recorded path; `stale` when it moved or was replaced, `last_path` when nothing is found |
+| `save`/`resolve` | Foundation bookmark, base64; resolved without mounting, the path read back with realpath(3), because Foundation decomposes every name it resolves; when the resolved file has another inode than the bookmark recorded, the recorded one is looked up with fsgetpath(2) and comes first; `last_path` read from the bookmark data | base64 JSON with the file system (UUID, else `f_fsid`), inode, generation (else creation time) and the path as bytes. Looked up at the recorded path, then in its old folder, then by the walk over the roots, and when it is nowhere, whatever now has the recorded path; `stale` when it moved or was replaced, `last_path` when nothing is found |
 | `query` | synchronous Spotlight (`MDQuery`) | the walk over the roots, which reads the `user.*` attributes of every file it passes |
 | `searchable` | `mdutil -s` on the volume root, cached per volume; yes only for "Indexing enabled.", and no in a dot directory or below a folder named `*.noindex`, which Spotlight leaves out. The folders excluded in System Settings are not known to the engine | yes only under a root that is there, on the root's file system, outside skipped dot directories, with no unreadable directory on the way or below and no file below whose attributes could not be read |
 
@@ -91,9 +91,12 @@ their own index as primary.
 
 **A new file in the old place.** Both engines first look for the saved file
 wherever it went, and only when it is nowhere take what now has the recorded
-path, with `stale`. A macOS bookmark does that on its own; the Linux engine
-does it because editors save by writing a new file and renaming it over the
-old one, which leaves a new inode in the old place. ext4 gives a freed inode
+path, with `stale`. A file found elsewhere while another lies at the recorded
+path is reported with `at_old_path`. A macOS bookmark looks at the recorded
+path first and takes what is there, so the macOS engine checks the inode
+itself (SPEC.md, "The file comes before the path"). Editors save by writing a
+new file and renaming it over the old one, which leaves a new inode in the old
+place. ext4 gives a freed inode
 number to the next new file at once, with the same creation time to the
 nanosecond (the kernel stamps with a coarse clock), so the Linux engine
 compares the generation number too: a new file elsewhere that got the old

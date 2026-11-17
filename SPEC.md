@@ -83,7 +83,7 @@ failure.
 | op | input | output |
 |---|---|---|
 | `save` | `path` | `{ok, blob}` — opaque bookmark blob (base64) |
-| `resolve` | `blob` | `{ok, path[, stale]}`, or `{ok:false, last_path}` if unresolvable — never mounts a volume |
+| `resolve` | `blob` | `{ok, path[, stale][, at_old_path]}`, or `{ok:false, last_path}` if unresolvable — never mounts a volume |
 | `tag` / `untag` | `path`, `value` | `{ok, action: added\|noop\|removed}` |
 | `tags` | `path` | `{ok, tags: [...]}` |
 | `set_meta` / `get_meta` | `path`, `key` (`groups`\|`id`\|`sync`\|`comment`), `value` | `{ok, action}` / `{ok, value}` |
@@ -107,6 +107,16 @@ and open it on any OS; on Linux the precomposed and the decomposed spelling of
 a name are two different files. `last_path` is the exception: it is what the
 blob recorded, and the file it names may be gone. Values are the other way
 round, stored NFC (below), because they are text, not names on a volume.
+
+**The file comes before the path.** `resolve` answers with the file the blob
+was saved from, wherever it is now. Only when that file is nowhere does it
+answer with what lies at the recorded path, which is how a file comes back
+after a program saved it by writing a new one over it. When the saved file was
+found elsewhere and another file lies at the recorded path, `at_old_path` names
+that other file. The engine cannot tell why it is there. The saved file may
+have been moved and its name taken by a new file, or a program wrote a new
+file there and kept the old one under another name. A consumer that knows more
+about its files decides, and should not save the blob anew before it has.
 
 Written values must pass the value rules in [PLATFORMS.md](PLATFORMS.md)
 (strict on write, tolerant on read and removal, stored NFC). A path that does
@@ -138,6 +148,15 @@ code are thin clients, and one engine process is held open for the run.)
 - **Bookmark staleness.** Handle `bookmarkDataIsStale` on resolve (regenerate the
   blob). Plain (non security-scoped) bookmarks — move-resilient references, not
   sandbox access.
+- **Foundation resolves by path first.** `URL(resolvingBookmarkData:)` takes
+  whatever lies at the recorded path and uses the inode only when nothing is
+  there (verified on macOS 27.2). The engine therefore compares the inode of
+  the resolved file with the one the bookmark recorded and, when they differ,
+  looks the recorded one up on the same volume with `fsgetpath(2)`. The
+  recorded inode is read from the bookmark data under `_NSURLFileIDKey`, for
+  which Foundation has no public name. The creation date the bookmark recorded
+  has to match too. When the key gives nothing, or the volume cannot map an
+  inode to a path, the answer is what Foundation resolved.
 - **`#S` xattr naming.** The flag is part of the name; pass the literal
   `…#S` name to `setxattr`/`getxattr`.
 - **Encoding.** Foundation hands back `String`; if reading raw xattr bytes
@@ -164,7 +183,8 @@ code are thin clients, and one engine process is held open for the run.)
   the same facts, plus the wire format and compatibility with blobs from the
   `bookmark` CLI when it is on PATH. It also checks that `resolve` returns an NFC
   and an NFD file name byte for byte as listed on disk, and that a renamed or
-  moved file resolves with `stale`. Against the Linux engine it also checks
+  moved file resolves with `stale`, and that a moved file whose name another
+  file took resolves to the moved file with `at_old_path`. Against the Linux engine it also checks
   that engine's own choices: the `user.*` names, the roots, the walk, and that
   a new file in a freed inode is not taken for the old one. Run:
   `python3 scripts/smoke.py [binary]`. The Linux engine's unit checks run with
